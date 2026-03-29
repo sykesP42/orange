@@ -1,0 +1,320 @@
+/* 页面切换动画 - 淡入淡出 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 页面切换动画 - 缩放效果 */
+.zoom-enter-active,
+.zoom-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.zoom-enter-from {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.zoom-leave-to {
+  opacity: 0;
+  transform: scale(1.05);
+}
+
+/* 页面切换动画 - 滑动效果 */
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.slide-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* 页面切换动画 - 上浮效果 */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+/* 页面切换动画 - 推进效果 */
+.push-enter-active,
+.push-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.push-enter-from {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+.push-leave-to {
+  opacity: 0;
+  transform: translateX(-100%);
+}
+
+/* 页面切换动画 - 折叠效果 */
+.fold-enter-active,
+.fold-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fold-enter-from {
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top;
+}
+
+.fold-leave-to {
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: bottom;
+}
+
+/* 页面切换动画 - 旋转效果 */
+.rotate-enter-active,
+.rotate-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rotate-enter-from {
+  opacity: 0;
+  transform: rotate(-5deg) scale(0.95);
+}
+
+.rotate-leave-to {
+  opacity: 0;
+  transform: rotate(5deg) scale(1.05);
+}
+
+/* 页面切换动画 - 弹性效果 */
+.bounce-enter-active,
+.bounce-leave-active {
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.bounce-enter-from {
+  opacity: 0;
+  transform: translateY(-30px);
+}
+
+.bounce-leave-to {
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+/* 页面切换动画 - 快速滑动 */
+.quick-slide-enter-active,
+.quick-slide-leave-active {
+  transition: all 0.2s ease-out;
+}
+
+.quick-slide-enter-from {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.quick-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+/* 组件过渡动画 */
+.component-fade-enter-active,
+.component-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.component-fade-enter-from,
+.component-fade-leave-to {
+  opacity: 0;
+}
+
+/* 列表过渡动画 */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter-from {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+/* 列表项过渡动画 */
+.list-item-enter-active,
+.list-item-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-item-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.list-item-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+/* 模态框过渡动画 */
+.modal-enter-active,
+.modal-leave-active {
+  transition: all 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal-content,
+.modal-leave-active .modal-content {
+  transition: all 0.3s ease;
+  transform: scale(0.9);
+}
+
+.modal-enter-to .modal-content,
+.modal-leave-from .modal-content {
+  transform: scale(1);
+}
+
+/* 按钮涟漪效果 */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.ripple:active::after {
+  width: 300px;
+  height: 300px;
+}
+
+/* 加载动画 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* 抖动动画 */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.shake {
+  animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* 弹跳动画 */
+@keyframes bounce-in {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.bounce-in {
+  animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) both;
+}
+
+/* 翻转动画 */
+@keyframes flip-in {
+  0% {
+    transform: perspective(400px) rotateY(90deg);
+    opacity: 0;
+  }
+  100% {
+    transform: perspective(400px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+.flip-in {
+  animation: flip-in 0.6s ease-out both;
+}
+
+/* 展开动画 */
+@keyframes expand {
+  0% {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  100% {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+}
+
+.expand {
+  animation: expand 0.4s ease-out both;
+}
+
+/* 移动端优化 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
