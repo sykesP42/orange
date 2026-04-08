@@ -1,0 +1,14 @@
+{
+  "concurrency": 50,
+  "requests": 333,
+  "successes": 331,
+  "failures": 2,
+  "successRate": "99.40",
+  "avgResponseTime": "216.78",
+  "minResponseTime": 143,
+  "maxResponseTime": 15222,
+  "duration": 73660,
+  "rps": "4.52",
+  "startTime": "2026-04-08T16:49:40.010Z",
+  "endTime": "2026-04-08T16:50:53.670Z"
+}
