@@ -1,0 +1,14 @@
+<Application x:Class="OrangeDesktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:OrangeDesktop.Converters"
+             Startup="OnStartup">
+    <Application.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:NotNullToVisibilityConverter x:Key="NotNullToVisibilityConverter"/>
+        <converters:InitialConverter x:Key="InitialConverter"/>
+        <converters:RoleConverter x:Key="RoleConverter"/>
+        <converters:LoginRegisterTextConverter x:Key="LoginRegisterTextConverter"/>
+        <converters:ToggleTextConverter x:Key="ToggleTextConverter"/>
+    </Application.Resources>
+</Application>

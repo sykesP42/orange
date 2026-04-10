@@ -1,0 +1,224 @@
+<Window x:Class="OrangeDesktop.Views.MainWindowView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Orange Desktop - 博主管理系统" Height="700" Width="1100"
+        WindowStartupLocation="CenterScreen"
+        Background="#FAFAFA">
+
+    <Window.Resources>
+        <Style x:Key="NavButtonStyle" TargetType="RadioButton">
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#666"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                Height="{TemplateBinding Height}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                           FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ContentPresenter VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#FFF0E8"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Background" Value="#FFE0D0"/>
+                                <Setter Property="Foreground" Value="#FF6B35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Sidebar -->
+        <Border Grid.Column="0" Background="White" BorderBrush="#EEE" BorderThickness="0,0,1,0">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="20,20,20,10">
+                    <TextBlock Text="🍊" FontSize="24" VerticalAlignment="Center"/>
+                    <TextBlock Text="Orange" FontSize="20" FontWeight="Bold" Foreground="#FF6B35" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                </StackPanel>
+
+                <Rectangle Height="1" Fill="#EEE" Margin="16,0"/>
+
+                <StackPanel Margin="0,10,0,0">
+                    <RadioButton Content="首页" Tag="🏠" Style="{StaticResource NavButtonStyle}" IsChecked="True" GroupName="Nav"/>
+                    <RadioButton Content="我的博主" Tag="📋" Style="{StaticResource NavButtonStyle}" GroupName="Nav"/>
+                    <RadioButton Content="团队" Tag="👥" Style="{StaticResource NavButtonStyle}" GroupName="Nav"/>
+                    <RadioButton Content="消息" Tag="💬" Style="{StaticResource NavButtonStyle}" GroupName="Nav"/>
+                    <RadioButton Content="通知" Tag="🔔" Style="{StaticResource NavButtonStyle}" GroupName="Nav"/>
+                    <RadioButton Content="论坛" Tag="📝" Style="{StaticResource NavButtonStyle}" GroupName="Nav"/>
+                </StackPanel>
+
+                <Rectangle Height="1" Fill="#EEE" Margin="16,10"/>
+
+                <StackPanel Margin="0,10,0,0">
+                    <RadioButton Content="设置" Tag="⚙️" Style="{StaticResource NavButtonStyle}" GroupName="Nav"/>
+                </StackPanel>
+
+                <!-- User info at bottom -->
+                <StackPanel VerticalAlignment="Bottom" Margin="16" Height="80">
+                    <Rectangle Height="1" Fill="#EEE" Margin="0,0,0,10"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="36" Height="36" CornerRadius="18" Background="#FF6B35">
+                            <TextBlock Text="{Binding CurrentUser.RealName, Converter={StaticResource InitialConverter}}"
+                                       Foreground="White" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CurrentUser.RealName}" FontWeight="Medium" FontSize="13"/>
+                            <TextBlock Text="{Binding CurrentUser.Role, Converter={StaticResource RoleConverter}}"
+                                       FontSize="11" Foreground="#999"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="56"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Top Bar -->
+            <Border Grid.Row="0" Background="White" BorderBrush="#EEE" BorderThickness="0,0,0,1">
+                <Grid Margin="20,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding PageTitle}" FontSize="18" FontWeight="SemiBold" Foreground="#333"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Content="刷新数据" Command="{Binding LoadDataCommand}"
+                                Padding="12,6" Margin="0,0,8,0"
+                                Background="#F5F5F5" Foreground="#666"
+                                BorderThickness="1" BorderBrush="#DDD"
+                                Cursor="Hand"/>
+                        <Button Content="退出登录" Command="{Binding LogoutCommand}"
+                                Padding="12,6"
+                                Background="#FFF0F0" Foreground="#E74C3C"
+                                BorderThickness="1" BorderBrush="#FFCCCC"
+                                Cursor="Hand"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Content -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24">
+                    <!-- Stats Cards -->
+                    <ItemsControl ItemsSource="{Binding BloggerStat}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="4"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+
+                    <UniformGrid Columns="4" Margin="0,0,0,20">
+                        <Border Background="White" CornerRadius="8" Margin="0,0,8,0" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="总博主数" FontSize="12" Foreground="#999"/>
+                                <TextBlock Text="{Binding BloggerStat.Total, StringFormat={}{0}}" FontSize="28" FontWeight="Bold" Foreground="#333" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="White" CornerRadius="8" Margin="8,0,8,0" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="活跃" FontSize="12" Foreground="#999"/>
+                                <TextBlock Text="{Binding BloggerStat.Active, StringFormat={}{0}}" FontSize="28" FontWeight="Bold" Foreground="#27AE60" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="White" CornerRadius="8" Margin="8,0,8,0" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="不活跃" FontSize="12" Foreground="#999"/>
+                                <TextBlock Text="{Binding BloggerStat.Inactive, StringFormat={}{0}}" FontSize="28" FontWeight="Bold" Foreground="#F39C12" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="White" CornerRadius="8" Margin="8,0,0,0" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="无效" FontSize="12" Foreground="#999"/>
+                                <TextBlock Text="{Binding BloggerStat.Invalid, StringFormat={}{0}}" FontSize="28" FontWeight="Bold" Foreground="#E74C3C" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+
+                    <!-- Search Bar -->
+                    <Border Background="White" CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding SearchKeyword, UpdateSourceTrigger=PropertyChanged}"
+                                     Height="32" VerticalContentAlignment="Center"
+                                     Padding="8,0" BorderThickness="0"
+                                     Background="Transparent"/>
+                            <Button Grid.Column="1" Content="搜索" Command="{Binding SearchCommand}"
+                                    Padding="16,6" Background="#FF6B35" Foreground="White"
+                                    BorderThickness="0" Cursor="Hand"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Blogger List -->
+                    <ItemsControl ItemsSource="{Binding Bloggers}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="White" CornerRadius="8" Margin="0,0,0,8" Padding="16">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="40" Height="40" CornerRadius="20" Background="#FFE0D0">
+                                            <TextBlock Text="{Binding Nickname, Converter={StaticResource InitialConverter}}"
+                                                       Foreground="#FF6B35" FontWeight="Bold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Nickname}" FontWeight="Medium" FontSize="14"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                <TextBlock Text="{Binding Category}" FontSize="12" Foreground="#999" Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding Platform}" FontSize="12" Foreground="#999"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Background="#E8F5E9" CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Status}" FontSize="12" Foreground="#27AE60"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Loading indicator -->
+                    <StackPanel HorizontalAlignment="Center" Margin="0,20"
+                                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="加载中..." FontSize="14" Foreground="#999" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Window>
