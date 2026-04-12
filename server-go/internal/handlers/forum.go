@@ -22,48 +22,82 @@ func NewForumHandler(db *sql.DB) *ForumHandler {
 func (h *ForumHandler) GetPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	category := c.Query("category")
 	offset := (page - 1) * pageSize
 
-	var total int
-	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE is_deleted = 0").Scan(&total)
-
-	rows, _ := h.DB.Query(`SELECT p.id, p.title, p.content, p.user_id, p.created_at, p.updated_at, p.views, p.likes,
+	countQuery := "SELECT COUNT(*) FROM public_posts"
+	query := `SELECT p.id, p.title, p.content, p.author_id, p.category, p.is_pinned, p.is_featured, 
+		p.view_count, p.like_count, p.comment_count, p.create_time,
 		u.username, u.real_name, u.avatar
 		FROM public_posts p 
-		JOIN users u ON p.user_id = u.id 
-		WHERE p.is_deleted = 0
-		ORDER BY p.created_at DESC LIMIT ? OFFSET ?`, pageSize, offset)
+		LEFT JOIN users u ON p.author_id = u.id`
+	args := []interface{}{}
+
+	if category != "" && category != "全部" {
+		query += " WHERE p.category = ?"
+		countQuery += " WHERE category = ?"
+		args = append(args, category)
+	}
+
+	query += " ORDER BY p.is_pinned DESC, p.create_time DESC LIMIT ? OFFSET ?"
+	args = append(args, pageSize, offset)
+
+	var total int
+	if len(args) > 2 {
+		countArgs := args[:len(args)-2]
+		_ = h.DB.QueryRow(countQuery, countArgs...).Scan(&total)
+	} else {
+		_ = h.DB.QueryRow(countQuery).Scan(&total)
+	}
+
+	rows, err := h.DB.Query(query, args...)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 200,
+			"data": gin.H{
+				"list":     []map[string]interface{}{},
+				"total":    0,
+				"page":     page,
+				"pageSize": pageSize,
+			},
+		})
+		return
+	}
+	defer rows.Close()
 
 	var posts []map[string]interface{}
 	for rows.Next() {
 		var id int
-		var title, content string
-		var userID int
-		var createdAt, updatedAt string
-		var views, likes int
+		var title, content, cat string
+		var authorID sql.NullInt64
+		var isPinned, isFeatured int
+		var viewCount, likeCount, commentCount int
+		var createTime string
 		var username, realName, avatar sql.NullString
-		rows.Scan(&id, &title, &content, &userID, &createdAt, &updatedAt, &views, &likes,
+		err = rows.Scan(&id, &title, &content, &authorID, &cat, &isPinned, &isFeatured,
+			&viewCount, &likeCount, &commentCount, &createTime,
 			&username, &realName, &avatar)
-
-		var commentCount int
-		h.DB.QueryRow("SELECT COUNT(*) FROM public_comments WHERE post_id = ? AND is_deleted = 0", id).Scan(&commentCount)
+		if err != nil {
+			continue
+		}
 
 		posts = append(posts, map[string]interface{}{
-			"id":         id,
-			"title":      title,
-			"content":    content,
-			"user_id":    userID,
-			"username":   username.String,
-			"real_name":  realName.String,
-			"avatar":     avatar.String,
-			"created_at": createdAt,
-			"updated_at": updatedAt,
-			"views":      views,
-			"likes":      likes,
-			"comments":   commentCount,
+			"id":          id,
+			"title":       title,
+			"content":     content,
+			"author_id":   authorID.Int64,
+			"username":    username.String,
+			"real_name":   realName.String,
+			"avatar":      avatar.String,
+			"category":    cat,
+			"is_pinned":   isPinned > 0,
+			"is_featured": isFeatured > 0,
+			"views":       viewCount,
+			"likes":       likeCount,
+			"comments":    commentCount,
+			"created_at":  createTime,
 		})
 	}
-	rows.Close()
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
@@ -79,18 +113,21 @@ func (h *ForumHandler) GetPosts(c *gin.Context) {
 func (h *ForumHandler) GetPost(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 
-	var title, content string
-	var userID int
-	var createdAt, updatedAt string
-	var views, likes int
+	var title, content, category string
+	var authorID sql.NullInt64
+	var isPinned, isFeatured int
+	var viewCount, likeCount, commentCount int
+	var createTime string
 	var username, realName, avatar sql.NullString
 
-	err := h.DB.QueryRow(`SELECT p.id, p.title, p.content, p.user_id, p.created_at, p.updated_at, p.views, p.likes,
+	err := h.DB.QueryRow(`SELECT p.id, p.title, p.content, p.author_id, p.category, p.is_pinned, p.is_featured,
+		p.view_count, p.like_count, p.comment_count, p.create_time,
 		u.username, u.real_name, u.avatar
 		FROM public_posts p 
-		JOIN users u ON p.user_id = u.id 
-		WHERE p.id = ? AND p.is_deleted = 0`, id).Scan(
-		&id, &title, &content, &userID, &createdAt, &updatedAt, &views, &likes,
+		LEFT JOIN users u ON p.author_id = u.id 
+		WHERE p.id = ?`, id).Scan(
+		&id, &title, &content, &authorID, &category, &isPinned, &isFeatured,
+		&viewCount, &likeCount, &commentCount, &createTime,
 		&username, &realName, &avatar)
 
 	if err != nil {
@@ -98,66 +135,97 @@ func (h *ForumHandler) GetPost(c *gin.Context) {
 		return
 	}
 
-	h.DB.Exec("UPDATE public_posts SET views = views + 1 WHERE id = ?", id)
+	h.DB.Exec("UPDATE public_posts SET view_count = view_count + 1 WHERE id = ?", id)
 
-	var commentCount int
-	h.DB.QueryRow("SELECT COUNT(*) FROM public_comments WHERE post_id = ? AND is_deleted = 0", id).Scan(&commentCount)
-
-	commentRows, _ := h.DB.Query(`SELECT c.id, c.content, c.user_id, c.created_at,
+	commentRows, err := h.DB.Query(`SELECT c.id, c.content, c.author_id, c.create_time,
 		u.username, u.real_name, u.avatar
-		FROM public_comments c 
-		JOIN users u ON c.user_id = u.id 
-		WHERE c.post_id = ? AND c.is_deleted = 0
-		ORDER BY c.created_at ASC`, id)
+		FROM public_post_comments c 
+		LEFT JOIN users u ON c.author_id = u.id 
+		WHERE c.post_id = ?
+		ORDER BY c.create_time ASC`, id)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"code": 200,
+			"data": map[string]interface{}{
+				"id":          id,
+				"title":       title,
+				"content":     content,
+				"author_id":   authorID.Int64,
+				"username":    username.String,
+				"real_name":   realName.String,
+				"avatar":      avatar.String,
+				"category":    category,
+				"is_pinned":   isPinned > 0,
+				"is_featured": isFeatured > 0,
+				"views":       viewCount + 1,
+				"likes":       likeCount,
+				"comments":    []map[string]interface{}{},
+				"created_at":  createTime,
+			},
+		})
+		return
+	}
+	defer commentRows.Close()
 
 	var comments []map[string]interface{}
 	for commentRows.Next() {
 		var cID int
 		var cContent string
-		var cUserID int
+		var cAuthorID sql.NullInt64
 		var cCreatedAt string
 		var cUsername, cRealName, cAvatar sql.NullString
-		commentRows.Scan(&cID, &cContent, &cUserID, &cCreatedAt, &cUsername, &cRealName, &cAvatar)
+		commentRows.Scan(&cID, &cContent, &cAuthorID, &cCreatedAt, &cUsername, &cRealName, &cAvatar)
 
 		comments = append(comments, map[string]interface{}{
 			"id":         cID,
 			"content":    cContent,
-			"user_id":    cUserID,
+			"author_id":  cAuthorID.Int64,
 			"username":   cUsername.String,
 			"real_name":  cRealName.String,
 			"avatar":     cAvatar.String,
 			"created_at": cCreatedAt,
 		})
 	}
-	commentRows.Close()
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"data": map[string]interface{}{
-			"id":         id,
-			"title":      title,
-			"content":    content,
-			"user_id":    userID,
-			"username":   username.String,
-			"real_name":  realName.String,
-			"avatar":     avatar.String,
-			"created_at": createdAt,
-			"updated_at": updatedAt,
-			"views":      views + 1,
-			"likes":      likes,
-			"comments":   comments,
+			"id":          id,
+			"title":       title,
+			"content":     content,
+			"author_id":   authorID.Int64,
+			"username":    username.String,
+			"real_name":   realName.String,
+			"avatar":      avatar.String,
+			"category":    category,
+			"is_pinned":   isPinned > 0,
+			"is_featured": isFeatured > 0,
+			"views":       viewCount + 1,
+			"likes":       likeCount,
+			"comments":    comments,
+			"created_at":  createTime,
 		},
 	})
 }
 
 func (h *ForumHandler) CreatePost(c *gin.Context) {
-	userID, _ := c.Get("userID")
-	realName, _ := c.Get("realName")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var req struct {
-		Title   string   `json:"title"`
-		Content string   `json:"content"`
-		Tags    []string `json:"tags"`
+		Title    string `json:"title"`
+		Content  string `json:"content"`
+		Category string `json:"category"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil || req.Title == "" || req.Content == "" {
@@ -165,44 +233,56 @@ func (h *ForumHandler) CreatePost(c *gin.Context) {
 		return
 	}
 
-	tagsStr := ""
-	if len(req.Tags) > 0 {
-		tagsStr = stringsJoin(req.Tags, ",")
+	if req.Category == "" {
+		req.Category = "讨论"
 	}
 
-	result, _ := h.DB.Exec(`INSERT INTO public_posts (title, content, tags, user_id, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		req.Title, req.Content, tagsStr, userID, time.Now().Format(time.RFC3339), time.Now().Format(time.RFC3339))
+	now := time.Now().Format(time.RFC3339)
+	result, _ := h.DB.Exec(`INSERT INTO public_posts (title, content, author_id, category, create_time) 
+		VALUES (?, ?, ?, ?, ?)`,
+		req.Title, req.Content, userID, req.Category, now)
 	id, _ := result.LastInsertId()
 
 	var username, avatar sql.NullString
 	h.DB.QueryRow("SELECT username, avatar FROM users WHERE id = ?", userID).Scan(&username, &avatar)
 
-	database.AddLog("发帖", realName.(string), realName.(string), "公共论坛发帖【"+req.Title+"】")
+	database.AddLog("发帖", realName, realName, "公共论坛发帖【"+req.Title+"】")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"data": map[string]interface{}{
-			"id":         id,
-			"title":      req.Title,
-			"content":    req.Content,
-			"tags":       tagsStr,
-			"user_id":    userID,
-			"username":   username.String,
-			"real_name":  realName,
-			"avatar":     avatar.String,
-			"created_at": time.Now().Format(time.RFC3339),
-			"updated_at": time.Now().Format(time.RFC3339),
-			"views":      0,
-			"likes":      0,
+			"id":          id,
+			"title":       req.Title,
+			"content":     req.Content,
+			"author_id":   userID,
+			"username":    username.String,
+			"real_name":   realName,
+			"avatar":      avatar.String,
+			"category":    req.Category,
+			"is_pinned":   false,
+			"is_featured": false,
+			"views":       0,
+			"likes":       0,
+			"comments":    0,
+			"created_at":  now,
 		},
 	})
 }
 
 func (h *ForumHandler) CreateComment(c *gin.Context) {
 	postID, _ := strconv.Atoi(c.Param("id"))
-	userID, _ := c.Get("userID")
-	realName, _ := c.Get("realName")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var req struct {
 		Content string `json:"content"`
@@ -214,30 +294,35 @@ func (h *ForumHandler) CreateComment(c *gin.Context) {
 	}
 
 	var exists int
-	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ? AND is_deleted = 0", postID).Scan(&exists)
+	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ?", postID).Scan(&exists)
 	if exists == 0 {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "帖子不存在"})
 		return
 	}
 
-	result, _ := h.DB.Exec(`INSERT INTO public_comments (post_id, content, user_id, created_at) 
+	now := time.Now().Format(time.RFC3339)
+	result, _ := h.DB.Exec(`INSERT INTO public_post_comments (post_id, content, author_id, create_time) 
 		VALUES (?, ?, ?, ?)`,
-		postID, req.Content, userID, time.Now().Format(time.RFC3339))
+		postID, req.Content, userID, now)
 	id, _ := result.LastInsertId()
+
+	h.DB.Exec("UPDATE public_posts SET comment_count = comment_count + 1 WHERE id = ?", postID)
 
 	var username, avatar sql.NullString
 	h.DB.QueryRow("SELECT username, avatar FROM users WHERE id = ?", userID).Scan(&username, &avatar)
 
-	var postUserID int
+	var postAuthorID sql.NullInt64
 	var postTitle string
-	h.DB.QueryRow("SELECT user_id, title FROM public_posts WHERE id = ?", postID).Scan(&postUserID, &postTitle)
+	h.DB.QueryRow("SELECT author_id, title FROM public_posts WHERE id = ?", postID).Scan(&postAuthorID, &postTitle)
 
-	if postUserID != userID {
+	if postAuthorID.Valid && postAuthorID.Int64 != int64(userID) {
 		h.DB.Exec(`INSERT INTO notifications (user_id, type, title, content, priority, post_id, from_user, create_time)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			postUserID, "post_comment", "💬 帖子收到新评论", "您的帖子【"+postTitle+"】收到了【"+realName.(string)+"】的评论",
-			"normal", postID, realName, time.Now().Format(time.RFC3339))
+			postAuthorID.Int64, "post_comment", "💬 帖子收到新评论", "您的帖子【"+postTitle+"】收到了【"+realName+"】的评论",
+			"normal", postID, realName, now)
 	}
+
+	database.AddLog("评论", realName, realName, "评论帖子【"+postTitle+"】")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
@@ -245,76 +330,105 @@ func (h *ForumHandler) CreateComment(c *gin.Context) {
 			"id":         id,
 			"post_id":    postID,
 			"content":    req.Content,
-			"user_id":    userID,
+			"author_id":  userID,
 			"username":   username.String,
 			"real_name":  realName,
 			"avatar":     avatar.String,
-			"created_at": time.Now().Format(time.RFC3339),
+			"created_at": now,
 		},
 	})
 }
-
 func (h *ForumHandler) DeletePost(c *gin.Context) {
 	postID, _ := strconv.Atoi(c.Param("id"))
-	userID, _ := c.Get("userID")
-	role, _ := c.Get("role")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
-	var postUserID int
+	var postAuthorID sql.NullInt64
 	var title string
-	h.DB.QueryRow("SELECT user_id, title FROM public_posts WHERE id = ? AND is_deleted = 0", postID).Scan(&postUserID, &title)
+	h.DB.QueryRow("SELECT author_id, title FROM public_posts WHERE id = ?", postID).Scan(&postAuthorID, &title)
 
-	if postUserID == 0 {
+	if !postAuthorID.Valid {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "帖子不存在"})
 		return
 	}
 
-	if role != "admin" && postUserID != userID {
+	if role != "admin" && postAuthorID.Int64 != int64(userID) {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "无权限删除此帖子"})
 		return
 	}
 
-	h.DB.Exec("UPDATE public_posts SET is_deleted = 1 WHERE id = ?", postID)
+	h.DB.Exec("DELETE FROM public_post_comments WHERE post_id = ?", postID)
+	h.DB.Exec("DELETE FROM public_post_likes WHERE post_id = ?", postID)
+	h.DB.Exec("DELETE FROM public_post_collects WHERE post_id = ?", postID)
+	h.DB.Exec("DELETE FROM public_posts WHERE id = ?", postID)
 
-	realName, _ := c.Get("realName")
-	database.AddLog("删帖", realName.(string), realName.(string), "删除帖子【"+title+"】")
+	database.AddLog("删帖", "公共论坛帖子【"+title+"】", realName, "删除公共论坛帖子")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
 
 func (h *ForumHandler) DeleteComment(c *gin.Context) {
-	commentID, _ := strconv.Atoi(c.Param("commentId"))
 	postID, _ := strconv.Atoi(c.Param("id"))
-	userID, _ := c.Get("userID")
-	role, _ := c.Get("role")
-	realName, _ := c.Get("realName")
+	commentID, _ := strconv.Atoi(c.Param("commentId"))
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
-	var commentUserID int
-	h.DB.QueryRow("SELECT user_id FROM public_comments WHERE id = ? AND is_deleted = 0", commentID).Scan(&commentUserID)
+	var commentAuthorID sql.NullInt64
+	h.DB.QueryRow("SELECT author_id FROM public_post_comments WHERE id = ?", commentID).Scan(&commentAuthorID)
 
-	if commentUserID == 0 {
+	if !commentAuthorID.Valid {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "评论不存在"})
 		return
 	}
 
-	if role != "admin" && commentUserID != userID {
+	if role != "admin" && commentAuthorID.Int64 != int64(userID) {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "无权限删除此评论"})
 		return
 	}
 
-	h.DB.Exec("UPDATE public_comments SET is_deleted = 1 WHERE id = ?", commentID)
-	h.DB.Exec("UPDATE public_posts SET comment_count = comment_count - 1 WHERE id = ?", postID)
+	h.DB.Exec("DELETE FROM public_post_comments WHERE id = ?", commentID)
+	h.DB.Exec("UPDATE public_posts SET comment_count = CASE WHEN comment_count > 0 THEN comment_count - 1 ELSE 0 END WHERE id = ?", postID)
 
-	database.AddLog("删除评论", "公共论坛评论", realName.(string), "删除公共论坛评论")
+	database.AddLog("删除评论", "公共论坛评论", realName, "删除公共论坛评论")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
 
 func (h *ForumHandler) LikePost(c *gin.Context) {
 	postID, _ := strconv.Atoi(c.Param("id"))
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var exists int
-	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ? AND is_deleted = 0", postID).Scan(&exists)
+	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ?", postID).Scan(&exists)
 	if exists == 0 {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "帖子不存在"})
 		return
@@ -325,24 +439,29 @@ func (h *ForumHandler) LikePost(c *gin.Context) {
 
 	if liked > 0 {
 		h.DB.Exec("DELETE FROM public_post_likes WHERE post_id = ? AND user_id = ?", postID, userID)
-		h.DB.Exec("UPDATE public_posts SET likes = likes - 1 WHERE id = ?", postID)
+		h.DB.Exec("UPDATE public_posts SET like_count = like_count - 1 WHERE id = ?", postID)
 	} else {
 		h.DB.Exec("INSERT INTO public_post_likes (post_id, user_id) VALUES (?, ?)", postID, userID)
-		h.DB.Exec("UPDATE public_posts SET likes = likes + 1 WHERE id = ?", postID)
+		h.DB.Exec("UPDATE public_posts SET like_count = like_count + 1 WHERE id = ?", postID)
 	}
 
-	var likes int
-	h.DB.QueryRow("SELECT likes FROM public_posts WHERE id = ?", postID).Scan(&likes)
+	var likeCount int
+	h.DB.QueryRow("SELECT like_count FROM public_posts WHERE id = ?", postID).Scan(&likeCount)
 
-	c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{"liked": liked == 0, "likes": likes}})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{"liked": liked == 0, "likes": likeCount}})
 }
 
 func (h *ForumHandler) CollectPost(c *gin.Context) {
 	postID, _ := strconv.Atoi(c.Param("id"))
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var exists int
-	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ? AND is_deleted = 0", postID).Scan(&exists)
+	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ?", postID).Scan(&exists)
 	if exists == 0 {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "帖子不存在"})
 		return
@@ -362,8 +481,14 @@ func (h *ForumHandler) CollectPost(c *gin.Context) {
 
 func (h *ForumHandler) PinPost(c *gin.Context) {
 	postID, _ := strconv.Atoi(c.Param("id"))
-	role, _ := c.Get("role")
-	realName, _ := c.Get("realName")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
@@ -371,7 +496,7 @@ func (h *ForumHandler) PinPost(c *gin.Context) {
 	}
 
 	var exists int
-	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ? AND is_deleted = 0", postID).Scan(&exists)
+	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ?", postID).Scan(&exists)
 	if exists == 0 {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "帖子不存在"})
 		return
@@ -382,15 +507,21 @@ func (h *ForumHandler) PinPost(c *gin.Context) {
 
 	h.DB.Exec("UPDATE public_posts SET is_pinned = ? WHERE id = ?", 1-isPinned, postID)
 
-	database.AddLog("置顶", "公共论坛帖子", realName.(string), fmt.Sprintf("置顶/取消置顶公共论坛帖子"))
+	database.AddLog("置顶", "公共论坛帖子", realName, fmt.Sprintf("置顶/取消置顶公共论坛帖子"))
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{"is_pinned": 1 - isPinned}})
 }
 
 func (h *ForumHandler) FeaturePost(c *gin.Context) {
 	postID, _ := strconv.Atoi(c.Param("id"))
-	role, _ := c.Get("role")
-	realName, _ := c.Get("realName")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
@@ -398,7 +529,7 @@ func (h *ForumHandler) FeaturePost(c *gin.Context) {
 	}
 
 	var exists int
-	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ? AND is_deleted = 0", postID).Scan(&exists)
+	h.DB.QueryRow("SELECT COUNT(*) FROM public_posts WHERE id = ?", postID).Scan(&exists)
 	if exists == 0 {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "帖子不存在"})
 		return
@@ -409,7 +540,197 @@ func (h *ForumHandler) FeaturePost(c *gin.Context) {
 
 	h.DB.Exec("UPDATE public_posts SET is_featured = ? WHERE id = ?", 1-isFeatured, postID)
 
-	database.AddLog("精选", "公共论坛帖子", realName.(string), fmt.Sprintf("精选/取消精选公共论坛帖子"))
+	database.AddLog("精选", "公共论坛帖子", realName, fmt.Sprintf("精选/取消精选公共论坛帖子"))
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{"is_featured": 1 - isFeatured}})
+}
+
+func (h *ForumHandler) SearchForumPosts(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "搜索关键词不能为空"})
+		return
+	}
+
+	searchPattern := "%" + keyword + "%"
+	query := `SELECT p.id, p.title, p.content, p.author_id, p.category, p.is_pinned, p.is_featured, 
+		p.view_count, p.like_count, p.comment_count, p.create_time,
+		u.username, u.real_name, u.avatar
+		FROM public_posts p 
+		LEFT JOIN users u ON p.author_id = u.id
+		WHERE (p.title LIKE ? OR p.content LIKE ?)
+		ORDER BY p.create_time DESC`
+
+	rows, err := h.DB.Query(query, searchPattern, searchPattern)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []interface{}{}})
+		return
+	}
+	defer rows.Close()
+
+	var posts []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var title, content, cat string
+		var authorID sql.NullInt64
+		var isPinned, isFeatured int
+		var viewCount, likeCount, commentCount int
+		var createTime string
+		var username, realName, avatar sql.NullString
+		err = rows.Scan(&id, &title, &content, &authorID, &cat, &isPinned, &isFeatured,
+			&viewCount, &likeCount, &commentCount, &createTime,
+			&username, &realName, &avatar)
+		if err != nil {
+			continue
+		}
+
+		posts = append(posts, map[string]interface{}{
+			"id":          id,
+			"title":       title,
+			"content":     content,
+			"author_id":   authorID.Int64,
+			"username":    username.String,
+			"real_name":   realName.String,
+			"avatar":      avatar.String,
+			"category":    cat,
+			"is_pinned":   isPinned > 0,
+			"is_featured": isFeatured > 0,
+			"views":       viewCount,
+			"likes":       likeCount,
+			"comments":    commentCount,
+			"created_at":  createTime,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": posts})
+}
+
+func (h *ForumHandler) GetHotPosts(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	query := `SELECT p.id, p.title, p.content, p.author_id, p.category, p.is_pinned, p.is_featured, 
+		p.view_count, p.like_count, p.comment_count, p.create_time,
+		u.username, u.real_name, u.avatar
+		FROM public_posts p 
+		LEFT JOIN users u ON p.author_id = u.id
+		ORDER BY p.like_count DESC, p.view_count DESC LIMIT ?`
+
+	rows, err := h.DB.Query(query, limit)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []interface{}{}})
+		return
+	}
+	defer rows.Close()
+
+	var posts []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var title, content, cat string
+		var authorID sql.NullInt64
+		var isPinned, isFeatured int
+		var viewCount, likeCount, commentCount int
+		var createTime string
+		var username, realName, avatar sql.NullString
+		err = rows.Scan(&id, &title, &content, &authorID, &cat, &isPinned, &isFeatured,
+			&viewCount, &likeCount, &commentCount, &createTime,
+			&username, &realName, &avatar)
+		if err != nil {
+			continue
+		}
+
+		posts = append(posts, map[string]interface{}{
+			"id":          id,
+			"title":       title,
+			"content":     content,
+			"author_id":   authorID.Int64,
+			"username":    username.String,
+			"real_name":   realName.String,
+			"avatar":      avatar.String,
+			"category":    cat,
+			"is_pinned":   isPinned > 0,
+			"is_featured": isFeatured > 0,
+			"views":       viewCount,
+			"likes":       likeCount,
+			"comments":    commentCount,
+			"created_at":  createTime,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": posts})
+}
+
+func (h *ForumHandler) GetCollectedPosts(c *gin.Context) {
+	userID, _ := c.Get("userID")
+
+	query := `SELECT p.id, p.title, p.content, p.author_id, p.category, p.is_pinned, p.is_featured, 
+		p.view_count, p.like_count, p.comment_count, p.create_time,
+		u.username, u.real_name, u.avatar
+		FROM public_posts p 
+		INNER JOIN public_post_collects pc ON p.id = pc.post_id
+		LEFT JOIN users u ON p.author_id = u.id
+		WHERE pc.user_id = ?
+		ORDER BY pc.create_time DESC`
+
+	rows, err := h.DB.Query(query, userID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []interface{}{}})
+		return
+	}
+	defer rows.Close()
+
+	var posts []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var title, content, cat string
+		var authorID sql.NullInt64
+		var isPinned, isFeatured int
+		var viewCount, likeCount, commentCount int
+		var createTime string
+		var username, realName, avatar sql.NullString
+		err = rows.Scan(&id, &title, &content, &authorID, &cat, &isPinned, &isFeatured,
+			&viewCount, &likeCount, &commentCount, &createTime,
+			&username, &realName, &avatar)
+		if err != nil {
+			continue
+		}
+
+		posts = append(posts, map[string]interface{}{
+			"id":          id,
+			"title":       title,
+			"content":     content,
+			"author_id":   authorID.Int64,
+			"username":    username.String,
+			"real_name":   realName.String,
+			"avatar":      avatar.String,
+			"category":    cat,
+			"is_pinned":   isPinned > 0,
+			"is_featured": isFeatured > 0,
+			"views":       viewCount,
+			"likes":       likeCount,
+			"comments":    commentCount,
+			"created_at":  createTime,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": posts})
+}
+
+func (h *ForumHandler) GetCollectStatus(c *gin.Context) {
+	postID, _ := strconv.Atoi(c.Param("id"))
+	userID, _ := c.Get("userID")
+
+	var collected int
+	h.DB.QueryRow("SELECT COUNT(*) FROM public_post_collects WHERE post_id = ? AND user_id = ?", postID, userID).Scan(&collected)
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{"collected": collected > 0}})
+}
+
+func (h *ForumHandler) GetLikeStatus(c *gin.Context) {
+	postID, _ := strconv.Atoi(c.Param("id"))
+	userID, _ := c.Get("userID")
+
+	var liked int
+	h.DB.QueryRow("SELECT COUNT(*) FROM public_post_likes WHERE post_id = ? AND user_id = ?", postID, userID).Scan(&liked)
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{"liked": liked > 0}})
 }

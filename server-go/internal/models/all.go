@@ -275,3 +275,24 @@ type Announcement struct {
 	Content    string `json:"content"`
 	CreateTime string `json:"create_time"`
 }
+
+type SavedFilter struct {
+	ID        int    `json:"id"`
+	UserID    int    `json:"user_id"`
+	Name      string `json:"name"`
+	Filters   string `json:"filters"`
+	IsDefault int    `json:"is_default"`
+	CreateTime string `json:"create_time"`
+}
+
+type WorkflowRule struct {
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	TriggerType  string `json:"trigger_type"`
+	TriggerValue string `json:"trigger_value"`
+	ActionType   string `json:"action_type"`
+	ActionConfig string `json:"action_config"`
+	Enabled      int    `json:"enabled"`
+	Priority     int    `json:"priority"`
+	CreateTime   string `json:"create_time"`
+}

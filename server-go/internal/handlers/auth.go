@@ -2,16 +2,17 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"server-go/internal/config"
 	"server-go/internal/database"
 	"server-go/internal/models"
+	"server-go/pkg/auth"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
@@ -42,7 +43,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "密码加密失败"})
 		return
@@ -55,7 +56,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	result, err := h.DB.Exec(`INSERT INTO users (username, password, real_name, role, status) 
 		VALUES (?, ?, ?, ?, ?)`,
-		req.Username, string(hashedPassword), realName, "user", "pending")
+		req.Username, hashedPassword, realName, "user", "pending")
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
 		return
@@ -63,32 +64,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	id, _ := result.LastInsertId()
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id":       id,
-		"username": req.Username,
-		"role":     "user",
-		"realName": realName,
-		"exp":      time.Now().Add(24 * time.Hour).Unix(),
-	})
-
-	tokenString, err := token.SignedString([]byte(h.Cfg.JWTSecret))
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "生成token失败"})
-		return
-	}
-
 	database.AddLog("注册", realName, realName, "新用户【"+realName+"】注册")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"message": "注册成功，等待管理员审核",
 		"data": gin.H{
-			"token":    tokenString,
-			"id":       id,
-			"username": req.Username,
+			"id":        id,
+			"username":  req.Username,
 			"real_name": realName,
-			"role":     "user",
-			"status":   "pending",
+			"role":      "user",
+			"status":    "pending",
 		},
 	})
 }
@@ -125,7 +111,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+	if !auth.CheckPassword(req.Password, user.Password) {
 		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "用户名或密码错误"})
 		return
 	}
@@ -201,9 +187,9 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	var createTime, updateTime string
 
 	err := h.DB.QueryRow(`
-		SELECT id, username, password, real_name, role, avatar, email, phone, bio, status, team_id, create_time, update_time
+		SELECT id, username, real_name, role, avatar, email, phone, bio, status, team_id, create_time, update_time
 		FROM users WHERE id = ?`, userID).Scan(
-		&user.ID, &user.Username, &user.Password, &realName, &user.Role,
+		&user.ID, &user.Username, &realName, &user.Role,
 		&avatar, &email, &phone, &bio, &status, &teamID, &createTime, &updateTime,
 	)
 
@@ -249,8 +235,18 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 }
 
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
-	userID, _ := c.Get("userID")
-	realName, _ := c.Get("realName")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var req struct {
 		RealName string `json:"real_name"`
@@ -296,14 +292,24 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		h.DB.Exec(query, args...)
 	}
 
-	database.AddLog("更新资料", realName.(string), realName.(string), "更新个人资料")
+	database.AddLog("更新资料", realName, realName, "更新个人资料")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
 }
 
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
-	userID, _ := c.Get("userID")
-	realName, _ := c.Get("realName")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var req struct {
 		OldPassword string `json:"oldPassword" binding:"required"`
@@ -318,12 +324,12 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	var currentPassword string
 	h.DB.QueryRow("SELECT password FROM users WHERE id = ?", userID).Scan(&currentPassword)
 
-	if err := bcrypt.CompareHashAndPassword([]byte(currentPassword), []byte(req.OldPassword)); err != nil {
+	if !auth.CheckPassword(req.OldPassword, currentPassword) {
 		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "原密码错误"})
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	hashedPassword, err := auth.HashPassword(req.NewPassword)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "密码加密失败"})
 		return
@@ -331,13 +337,14 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 
 	h.DB.Exec("UPDATE users SET password = ?, update_time = CURRENT_TIMESTAMP WHERE id = ?", hashedPassword, userID)
 
-	database.AddLog("修改密码", realName.(string), realName.(string), "修改登录密码")
+	database.AddLog("修改密码", realName, realName, "修改登录密码")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "密码修改成功"})
 }
 
 func (h *AuthHandler) GetUsers(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -438,7 +445,8 @@ func (h *AuthHandler) GetUsers(c *gin.Context) {
 }
 
 func (h *AuthHandler) UpdateUser(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -499,29 +507,49 @@ func (h *AuthHandler) UpdateUser(c *gin.Context) {
 		h.DB.Exec(query, args...)
 	}
 
-	adminRealName, _ := c.Get("realName")
-	database.AddLog("更新用户", oldRealName.String, adminRealName.(string), "更新用户【"+oldRealName.String+"】信息")
+	adminRealNameVal, _ := c.Get("realName")
+	adminRealName, ok := adminRealNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	database.AddLog("更新用户", oldRealName.String, adminRealName, "更新用户【"+oldRealName.String+"】信息")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
 }
 
 func (h *AuthHandler) ApproveUser(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
 	}
 
-	id, _ := strconv.Atoi(c.Param("id"))
-	var realName, username string
-	h.DB.QueryRow("SELECT real_name, username FROM users WHERE id = ?", id).Scan(&realName, &username)
+	type ApproveRequest struct {
+		ID int `json:"id"`
+	}
+	var req ApproveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "请求参数错误"})
+		return
+	}
 
-	if realName == "" {
+	id := req.ID
+	var realName, username string
+	err := h.DB.QueryRow("SELECT real_name, username FROM users WHERE id = ?", id).Scan(&realName, &username)
+
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "用户不存在"})
 		return
 	}
 
-	adminRealName, _ := c.Get("realName")
+	adminRealNameVal, _ := c.Get("realName")
+	adminRealName, ok := adminRealNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 	now := time.Now().Format(time.RFC3339)
 
 	h.DB.Exec(`UPDATE users SET status = ?, approved_by = ?, approved_time = ?, update_time = ? WHERE id = ?`,
@@ -533,13 +561,14 @@ func (h *AuthHandler) ApproveUser(c *gin.Context) {
 		"恭喜！您的账号【"+username+"】已通过管理员审核，现在可以正常使用了。",
 		"important", adminRealName, now)
 
-	database.AddLog("审核用户", realName, adminRealName.(string), "审核通过用户【"+realName+"】")
+	database.AddLog("审核用户", realName, adminRealName, "审核通过用户【"+realName+"】")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "审核通过"})
 }
 
 func (h *AuthHandler) DeleteUser(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -547,22 +576,28 @@ func (h *AuthHandler) DeleteUser(c *gin.Context) {
 
 	id, _ := strconv.Atoi(c.Param("id"))
 	var realName string
-	h.DB.QueryRow("SELECT real_name FROM users WHERE id = ?", id).Scan(&realName)
+	err := h.DB.QueryRow("SELECT real_name FROM users WHERE id = ?", id).Scan(&realName)
 
-	if realName == "" {
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "用户不存在"})
 		return
 	}
 
-	adminRealName, _ := c.Get("realName")
+	adminRealNameVal, _ := c.Get("realName")
+	adminRealName, ok := adminRealNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 	h.DB.Exec("UPDATE users SET is_deleted = 1, update_time = CURRENT_TIMESTAMP WHERE id = ?", id)
-	database.AddLog("删除用户", realName, adminRealName.(string), "删除用户【"+realName+"】")
+	database.AddLog("删除用户", realName, adminRealName, "删除用户【"+realName+"】")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
 
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -570,15 +605,15 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
 	id, _ := strconv.Atoi(c.Param("id"))
 	var realName, username string
-	h.DB.QueryRow("SELECT real_name, username FROM users WHERE id = ?", id).Scan(&realName, &username)
+	err := h.DB.QueryRow("SELECT real_name, username FROM users WHERE id = ?", id).Scan(&realName, &username)
 
-	if realName == "" {
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "用户不存在"})
 		return
 	}
 
 	defaultPassword := "123456"
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
+	hashedPassword, err := auth.HashPassword(defaultPassword)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "密码加密失败"})
 		return
@@ -586,8 +621,13 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
 	h.DB.Exec("UPDATE users SET password = ?, update_time = CURRENT_TIMESTAMP WHERE id = ?", hashedPassword, id)
 
-	adminRealName, _ := c.Get("realName")
-	database.AddLog("重置密码", realName, adminRealName.(string), "重置用户【"+realName+"】密码")
+	adminRealNameVal, _ := c.Get("realName")
+	adminRealName, ok := adminRealNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	database.AddLog("重置密码", realName, adminRealName, "重置用户【"+realName+"】密码")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "密码已重置为: 123456"})
 }
@@ -604,4 +644,165 @@ func join(slice []string, sep string) string {
 		result += sep + slice[i]
 	}
 	return result
+}
+
+func (h *AuthHandler) GetUserDetail(c *gin.Context) {
+	username := c.Param("username")
+
+	var user models.User
+	var realName, avatar, email, phone, bio, status sql.NullString
+	var teamID sql.NullInt64
+	var createTime, updateTime string
+
+	err := h.DB.QueryRow(`
+		SELECT id, username, real_name, role, avatar, email, phone, bio, status, team_id, create_time, update_time
+		FROM users WHERE username = ? AND is_deleted = 0`, username).Scan(
+		&user.ID, &user.Username, &realName, &user.Role,
+		&avatar, &email, &phone, &bio, &status, &teamID, &createTime, &updateTime,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "用户不存在"})
+		return
+	}
+
+	user.RealName = realName.String
+	user.Avatar = avatar.String
+	user.Email = email.String
+	user.Phone = phone.String
+	user.Bio = bio.String
+	user.Status = status.String
+	user.CreateTime = createTime
+	user.UpdateTime = updateTime
+	if teamID.Valid {
+		user.TeamID = &teamID.Int64
+	}
+
+	var teamName, teamColor sql.NullString
+	if user.TeamID != nil {
+		h.DB.QueryRow("SELECT name, color FROM teams WHERE id = ?", *user.TeamID).Scan(&teamName, &teamColor)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"id":         user.ID,
+			"username":   user.Username,
+			"real_name":  user.RealName,
+			"role":       user.Role,
+			"avatar":     user.Avatar,
+			"email":      user.Email,
+			"phone":      user.Phone,
+			"bio":        user.Bio,
+			"team_id":    user.TeamID,
+			"team_name":  teamName.String,
+			"team_color": teamColor.String,
+			"status":     user.Status,
+		},
+	})
+}
+
+func (h *AuthHandler) GetUserBloggers(c *gin.Context) {
+	username := c.Param("username")
+
+	query := `SELECT b.id, b.nickname, b.category, b.product, b.contact, b.wechat, b.custom_contact, 
+		b.platform, b.platform_account, b.description, b.tags, b.avatar, b.user_name, b.real_name, 
+		b.status, b.status_update_time, b.status_remark, b.is_deleted, b.is_invalid, b.create_time, b.update_time 
+		FROM blogger b WHERE b.is_deleted = 0 AND b.user_name = ?
+		ORDER BY b.create_time DESC`
+
+	countQuery := `SELECT COUNT(*) FROM blogger b WHERE b.is_deleted = 0 AND b.user_name = ?`
+
+	var total int
+	h.DB.QueryRow(countQuery, username).Scan(&total)
+
+	rows, err := h.DB.Query(query, username)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{"list": []map[string]interface{}{}, "total": 0}})
+		return
+	}
+	defer rows.Close()
+
+	var bloggerList []map[string]interface{}
+	for rows.Next() {
+		var b models.Blogger
+		rows.Scan(&b.ID, &b.Nickname, &b.Category, &b.Product, &b.Contact, &b.Wechat, &b.CustomContact,
+			&b.Platform, &b.PlatformAccount, &b.Description, &b.Tags, &b.Avatar, &b.UserName, &b.RealName,
+			&b.Status, &b.StatusUpdateTime, &b.StatusRemark, &b.IsDeleted, &b.IsInvalid, &b.CreateTime, &b.UpdateTime)
+
+		var userAvatar sql.NullString
+		h.DB.QueryRow(`SELECT avatar FROM users WHERE username = ?`, b.UserName).Scan(&userAvatar)
+
+		bloggerMap := map[string]interface{}{
+			"id":                 b.ID,
+			"nickname":           b.Nickname,
+			"category":           b.Category,
+			"product":            b.Product,
+			"contact":            b.Contact,
+			"wechat":             b.Wechat,
+			"custom_contact":     b.CustomContact,
+			"platform":           b.Platform,
+			"platform_account":   b.PlatformAccount,
+			"description":        b.Description,
+			"avatar":             b.Avatar,
+			"user_name":          b.UserName,
+			"real_name":          b.RealName,
+			"status":             b.Status,
+			"status_update_time": b.StatusUpdateTime,
+			"status_remark":      b.StatusRemark,
+			"is_deleted":         b.IsDeleted,
+			"is_invalid":         b.IsInvalid,
+			"create_time":        b.CreateTime,
+			"update_time":        b.UpdateTime,
+		}
+
+		if b.Avatar == "" {
+			bloggerMap["avatar"] = userAvatar.String
+		}
+
+		if b.Tags != "" {
+			var tags []string
+			if err := json.Unmarshal([]byte(b.Tags), &tags); err == nil {
+				bloggerMap["tags"] = tags
+			} else {
+				bloggerMap["tags"] = []string{}
+			}
+		} else {
+			bloggerMap["tags"] = []string{}
+		}
+
+		bloggerList = append(bloggerList, bloggerMap)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"list":  bloggerList,
+			"total": total,
+		},
+	})
+}
+
+func (h *AuthHandler) GetUserFollowupStats(c *gin.Context) {
+	username := c.Param("username")
+
+	var totalFollowups int
+	var todayFollowups int
+
+	h.DB.QueryRow(`SELECT COUNT(*) FROM followup f 
+		INNER JOIN blogger b ON f.blogger_id = b.id 
+		WHERE b.user_name = ? AND b.is_deleted = 0`, username).Scan(&totalFollowups)
+
+	today := time.Now().Format("2006-01-02")
+	h.DB.QueryRow(`SELECT COUNT(*) FROM followup f 
+		INNER JOIN blogger b ON f.blogger_id = b.id 
+		WHERE b.user_name = ? AND b.is_deleted = 0 AND DATE(f.create_time) = ?`, username, today).Scan(&todayFollowups)
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"total": totalFollowups,
+			"today": todayFollowups,
+		},
+	})
 }

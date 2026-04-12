@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"server-go/internal/database"
 	"server-go/internal/models"
@@ -34,7 +35,7 @@ func (h *BloggerHandler) GetBloggers(c *gin.Context) {
 
 	query := `SELECT b.id, b.nickname, b.category, b.product, b.contact, b.wechat, b.custom_contact, 
 		b.platform, b.platform_account, b.description, b.tags, b.avatar, b.user_name, b.real_name, 
-		b.status, b.status_update_time, b.create_time, b.update_time 
+		b.status, b.status_update_time, b.status_remark, b.is_deleted, b.is_invalid, b.create_time, b.update_time 
 		FROM blogger b WHERE b.is_deleted = 0`
 	countQuery := `SELECT COUNT(*) FROM blogger b WHERE b.is_deleted = 0`
 	args := []interface{}{}
@@ -97,7 +98,7 @@ func (h *BloggerHandler) GetBloggers(c *gin.Context) {
 		var b models.Blogger
 		rows.Scan(&b.ID, &b.Nickname, &b.Category, &b.Product, &b.Contact, &b.Wechat, &b.CustomContact,
 			&b.Platform, &b.PlatformAccount, &b.Description, &b.Tags, &b.Avatar, &b.UserName, &b.RealName,
-			&b.Status, &b.StatusUpdateTime, &b.CreateTime, &b.UpdateTime)
+			&b.Status, &b.StatusUpdateTime, &b.StatusRemark, &b.IsDeleted, &b.IsInvalid, &b.CreateTime, &b.UpdateTime)
 
 		var userAvatar, userEmail, userPhone, userBio, userRole sql.NullString
 		var userTeamID sql.NullInt64
@@ -181,7 +182,7 @@ func (h *BloggerHandler) GetMyBloggers(c *gin.Context) {
 
 	query := `SELECT b.id, b.nickname, b.category, b.product, b.contact, b.wechat, b.custom_contact, 
 		b.platform, b.platform_account, b.description, b.tags, b.avatar, b.user_name, b.real_name, 
-		b.status, b.status_update_time, b.create_time, b.update_time 
+		b.status, b.status_update_time, b.status_remark, b.is_deleted, b.is_invalid, b.create_time, b.update_time 
 		FROM blogger b WHERE b.is_deleted = 0 AND b.user_name = ?
 		ORDER BY b.create_time DESC LIMIT ? OFFSET ?`
 
@@ -202,7 +203,7 @@ func (h *BloggerHandler) GetMyBloggers(c *gin.Context) {
 		var b models.Blogger
 		rows.Scan(&b.ID, &b.Nickname, &b.Category, &b.Product, &b.Contact, &b.Wechat, &b.CustomContact,
 			&b.Platform, &b.PlatformAccount, &b.Description, &b.Tags, &b.Avatar, &b.UserName, &b.RealName,
-			&b.Status, &b.StatusUpdateTime, &b.CreateTime, &b.UpdateTime)
+			&b.Status, &b.StatusUpdateTime, &b.StatusRemark, &b.IsDeleted, &b.IsInvalid, &b.CreateTime, &b.UpdateTime)
 
 		var userAvatar sql.NullString
 		h.DB.QueryRow(`SELECT avatar FROM users WHERE username = ?`, b.UserName).Scan(&userAvatar)
@@ -280,6 +281,9 @@ func (h *BloggerHandler) GetExpiringBloggers(c *gin.Context) {
 		rows.Scan(&id, &nickname, &createTime)
 
 		ct, _ := time.Parse(time.RFC3339, createTime)
+		if ct.IsZero() {
+			ct, _ = time.Parse("2006-01-02 15:04:05", createTime)
+		}
 		diffTime := ct.Add(15*24*time.Hour).Unix() - now.Unix()
 		daysLeft := int(diffTime / (24 * 60 * 60))
 
@@ -297,11 +301,16 @@ func (h *BloggerHandler) GetExpiringBloggers(c *gin.Context) {
 }
 
 func (h *BloggerHandler) CreateBlogger(c *gin.Context) {
-	userName, _ := c.Get("username")
-	realName, _ := c.Get("realName")
-	realNameStr, _ := realName.(string)
-	if realNameStr == "" {
-		realNameStr = "未知用户"
+	userNameVal, _ := c.Get("username")
+	userName, _ := userNameVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	if realName == "" {
+		realName = "未知用户"
 	}
 
 	var req struct {
@@ -357,7 +366,7 @@ func (h *BloggerHandler) CreateBlogger(c *gin.Context) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		finalNickname, req.Category, req.Product, req.Contact, req.Wechat, req.CustomContact,
 		req.Platform, req.PlatformAccount, req.Description, string(tagsJSON), req.Avatar,
-		userName, realNameStr, "初次联系", now, now, now)
+		userName, realName, "初次联系", now, now, now)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
 		return
@@ -367,9 +376,9 @@ func (h *BloggerHandler) CreateBlogger(c *gin.Context) {
 
 	h.DB.Exec(`INSERT INTO blogger_status_history (blogger_id, old_status, new_status, operator, remark, create_time)
 		VALUES (?, NULL, ?, ?, ?, ?)`,
-		id, "初次联系", realNameStr, "博主初次录入", now)
+		id, "初次联系", realName, "博主初次录入", now)
 
-	database.AddLog("新增", finalNickname, realNameStr, "新增博主【"+finalNickname+"】("+req.Platform+": "+req.PlatformAccount+")")
+	database.AddLog("新增", finalNickname, realName, "新增博主【"+finalNickname+"】("+req.Platform+": "+req.PlatformAccount+")")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
@@ -458,13 +467,19 @@ func (h *BloggerHandler) GetBlogger(c *gin.Context) {
 
 func (h *BloggerHandler) UpdateBlogger(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	userName, _ := c.Get("username")
-	realName, _ := c.Get("realName")
-	role, _ := c.Get("role")
-	realNameStr, _ := realName.(string)
-	if realNameStr == "" {
-		realNameStr = "未知用户"
+	userNameVal, _ := c.Get("username")
+	userName, _ := userNameVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
 	}
+	if realName == "" {
+		realName = "未知用户"
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 
 	var b models.Blogger
 	err := h.DB.QueryRow(`SELECT user_name, nickname, status FROM blogger WHERE id = ? AND is_deleted = 0`, id).Scan(
@@ -480,18 +495,19 @@ func (h *BloggerHandler) UpdateBlogger(c *gin.Context) {
 	}
 
 	var req struct {
-		Nickname      string   `json:"nickname"`
-		Category      string   `json:"category"`
-		Product       string   `json:"product"`
-		Contact       string   `json:"contact"`
-		Wechat        string   `json:"wechat"`
-		CustomContact string   `json:"custom_contact"`
-		Platform      string   `json:"platform"`
-		Description   string   `json:"description"`
-		Tags          []string `json:"tags"`
-		Status        string   `json:"status"`
-		StatusRemark  string   `json:"status_remark"`
-		Avatar        string   `json:"avatar"`
+		Nickname        string   `json:"nickname"`
+		Category        string   `json:"category"`
+		Product         string   `json:"product"`
+		Contact         string   `json:"contact"`
+		Wechat          string   `json:"wechat"`
+		CustomContact   string   `json:"custom_contact"`
+		Platform        string   `json:"platform"`
+		PlatformAccount string   `json:"platform_account"`
+		Description     string   `json:"description"`
+		Tags            []string `json:"tags"`
+		Status          string   `json:"status"`
+		StatusRemark    string   `json:"status_remark"`
+		Avatar          string   `json:"avatar"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -530,6 +546,10 @@ func (h *BloggerHandler) UpdateBlogger(c *gin.Context) {
 		updates = append(updates, "platform = ?")
 		args = append(args, req.Platform)
 	}
+	if req.PlatformAccount != "" {
+		updates = append(updates, "platform_account = ?")
+		args = append(args, req.PlatformAccount)
+	}
 	if req.Description != "" {
 		updates = append(updates, "description = ?")
 		args = append(args, req.Description)
@@ -552,9 +572,9 @@ func (h *BloggerHandler) UpdateBlogger(c *gin.Context) {
 
 		h.DB.Exec(`INSERT INTO blogger_status_history (blogger_id, old_status, new_status, operator, remark, create_time)
 			VALUES (?, ?, ?, ?, ?, ?)`,
-			id, oldStatus, req.Status, realNameStr, req.StatusRemark, now)
+			id, oldStatus, req.Status, realName, req.StatusRemark, now)
 
-		database.AddLog("状态变更", b.Nickname, realNameStr, "博主状态从【"+oldStatus+"】变更为【"+req.Status+"】")
+		database.AddLog("状态变更", b.Nickname, realName, "博主状态从【"+oldStatus+"】变更为【"+req.Status+"】")
 
 		if (req.Status == "失效" || req.Status == "无效") && b.UserName != "" {
 			var userID int
@@ -564,7 +584,7 @@ func (h *BloggerHandler) UpdateBlogger(c *gin.Context) {
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 					userID, "invalid_blogger", "⚠️ 博主状态变更提醒",
 					"博主【"+b.Nickname+"】的状态已变更为【"+req.Status+"】，请及时处理。",
-					"important", id, realNameStr, time.Now().Format(time.RFC3339))
+					"important", id, realName, time.Now().Format(time.RFC3339))
 			}
 		}
 	}
@@ -578,7 +598,7 @@ func (h *BloggerHandler) UpdateBlogger(c *gin.Context) {
 		h.DB.Exec(query, args...)
 	}
 
-	database.AddLog("编辑", b.Nickname, realNameStr, "编辑博主信息")
+	database.AddLog("编辑", b.Nickname, realName, "编辑博主信息")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
 }
@@ -597,12 +617,17 @@ func (h *BloggerHandler) DeleteBlogger(c *gin.Context) {
 		}
 	}
 
-	realName, _ := c.Get("realName")
-	role, _ := c.Get("role")
-	realNameStr, _ := realName.(string)
-	if realNameStr == "" {
-		realNameStr = "未知用户"
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
 	}
+	if realName == "" {
+		realName = "未知用户"
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
@@ -619,7 +644,7 @@ func (h *BloggerHandler) DeleteBlogger(c *gin.Context) {
 
 	h.DB.Exec("UPDATE blogger SET is_deleted = 1, update_time = ? WHERE id = ?", time.Now().Format(time.RFC3339), id)
 
-	database.AddLog("删除", nickname, realNameStr, "删除博主【"+nickname+"】")
+	database.AddLog("删除", nickname, realName, "删除博主【"+nickname+"】")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
@@ -682,7 +707,12 @@ func (h *BloggerHandler) GetFollowups(c *gin.Context) {
 
 func (h *BloggerHandler) CreateFollowup(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	realName, _ := c.Get("realName")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var exists int
 	h.DB.QueryRow("SELECT COUNT(*) FROM blogger WHERE id = ? AND is_deleted = 0", id).Scan(&exists)
@@ -715,7 +745,7 @@ func (h *BloggerHandler) CreateFollowup(c *gin.Context) {
 
 	followupID, _ := result.LastInsertId()
 
-	database.AddLog("跟进", "博主跟进记录", realName.(string), "添加博主跟进记录")
+	database.AddLog("跟进", "博主跟进记录", realName, "添加博主跟进记录")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
@@ -726,8 +756,14 @@ func (h *BloggerHandler) CreateFollowup(c *gin.Context) {
 
 func (h *BloggerHandler) DeleteFollowup(c *gin.Context) {
 	followupID, _ := strconv.Atoi(c.Param("followupId"))
-	realName, _ := c.Get("realName")
-	role, _ := c.Get("role")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 
 	var operator string
 	h.DB.QueryRow("SELECT operator FROM followup WHERE id = ?", followupID).Scan(&operator)
@@ -743,7 +779,7 @@ func (h *BloggerHandler) DeleteFollowup(c *gin.Context) {
 
 	h.DB.Exec("DELETE FROM followup WHERE id = ?", followupID)
 
-	database.AddLog("删除", "跟进记录", realName.(string), "删除跟进记录")
+	database.AddLog("删除", "跟进记录", realName, "删除跟进记录")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
@@ -768,9 +804,9 @@ func (h *BloggerHandler) GetCooperations(c *gin.Context) {
 
 	var cooperations []models.Cooperation
 	for rows.Next() {
-		var c models.Cooperation
-		rows.Scan(&c.ID, &c.BloggerID, &c.Title, &c.Date, &c.Status, &c.Product, &c.Amount, &c.Note, &c.CreateTime, &c.UpdateTime)
-		cooperations = append(cooperations, c)
+		var coop models.Cooperation
+		rows.Scan(&coop.ID, &coop.BloggerID, &coop.Title, &coop.Date, &coop.Status, &coop.Product, &coop.Amount, &coop.Note, &coop.CreateTime, &coop.UpdateTime)
+		cooperations = append(cooperations, coop)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "data": cooperations})
@@ -778,7 +814,12 @@ func (h *BloggerHandler) GetCooperations(c *gin.Context) {
 
 func (h *BloggerHandler) CreateCooperation(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	realName, _ := c.Get("realName")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var exists int
 	h.DB.QueryRow("SELECT COUNT(*) FROM blogger WHERE id = ? AND is_deleted = 0", id).Scan(&exists)
@@ -816,7 +857,7 @@ func (h *BloggerHandler) CreateCooperation(c *gin.Context) {
 
 	coopID, _ := result.LastInsertId()
 
-	database.AddLog("合作", "合作记录", realName.(string), "添加合作记录【"+req.Title+"】")
+	database.AddLog("合作", "合作记录", realName, "添加合作记录【"+req.Title+"】")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
@@ -827,7 +868,12 @@ func (h *BloggerHandler) CreateCooperation(c *gin.Context) {
 
 func (h *BloggerHandler) UpdateCooperation(c *gin.Context) {
 	coopID, _ := strconv.Atoi(c.Param("coopId"))
-	realName, _ := c.Get("realName")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var exists int
 	h.DB.QueryRow("SELECT COUNT(*) FROM cooperation WHERE id = ?", coopID).Scan(&exists)
@@ -885,15 +931,21 @@ func (h *BloggerHandler) UpdateCooperation(c *gin.Context) {
 		h.DB.Exec(query, args...)
 	}
 
-	database.AddLog("编辑", "合作记录", realName.(string), "编辑合作记录")
+	database.AddLog("编辑", "合作记录", realName, "编辑合作记录")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
 }
 
 func (h *BloggerHandler) DeleteCooperation(c *gin.Context) {
 	coopID, _ := strconv.Atoi(c.Param("coopId"))
-	realName, _ := c.Get("realName")
-	role, _ := c.Get("role")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
@@ -909,15 +961,343 @@ func (h *BloggerHandler) DeleteCooperation(c *gin.Context) {
 
 	h.DB.Exec("DELETE FROM cooperation WHERE id = ?", coopID)
 
-	database.AddLog("删除", "合作记录【"+title+"】", realName.(string), "删除合作记录")
+	database.AddLog("删除", "合作记录【"+title+"】", realName, "删除合作记录")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
 
+func (h *BloggerHandler) BatchUpdateStatus(c *gin.Context) {
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		realName = "未知用户"
+	}
+
+	var req struct {
+		IDs    []int  `json:"ids" binding:"required"`
+		Status string `json:"status" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "请选择要更新的博主"})
+		return
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	successCount := 0
+
+	for _, id := range req.IDs {
+		var oldStatus string
+		h.DB.QueryRow("SELECT status FROM blogger WHERE id = ? AND is_deleted = 0", id).Scan(&oldStatus)
+
+		if oldStatus == "" {
+			oldStatus = "初次联系"
+		}
+
+		result, err := h.DB.Exec("UPDATE blogger SET status = ?, status_update_time = ?, update_time = ? WHERE id = ? AND is_deleted = 0",
+			req.Status, now, now, id)
+		if err != nil {
+			continue
+		}
+
+		affected, _ := result.RowsAffected()
+		if affected > 0 {
+			successCount++
+
+			h.DB.Exec(`INSERT INTO blogger_status_history (blogger_id, old_status, new_status, operator, remark, create_time)
+				VALUES (?, ?, ?, ?, ?, ?)`,
+				id, oldStatus, req.Status, realName, "批量状态更新", now)
+
+			var nickname string
+			var userID int
+			h.DB.QueryRow("SELECT nickname, user_name FROM blogger WHERE id = ?", id).Scan(&nickname, &userID)
+			if userID > 0 && (req.Status == "失效" || req.Status == "无效") {
+				h.DB.Exec(`INSERT INTO notifications (user_id, type, title, content, priority, blogger_id, from_user, create_time)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+					userID, "invalid_blogger", "⚠️ 博主状态变更提醒",
+					"博主【"+nickname+"】的状态已变更为【"+req.Status+"】，请及时处理。",
+					"important", id, realName, now)
+			}
+		}
+	}
+
+	database.AddLog("批量更新", "批量博主", realName, fmt.Sprintf("批量更新 %d 位博主状态为【%s】", successCount, req.Status))
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": fmt.Sprintf("成功更新 %d 位博主", successCount),
+		"data": gin.H{
+			"success_count": successCount,
+			"total_count":   len(req.IDs),
+		},
+	})
+}
+
+func (h *BloggerHandler) BatchUpdateTags(c *gin.Context) {
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		realName = "未知用户"
+	}
+
+	var req struct {
+		IDs    []int  `json:"ids" binding:"required"`
+		Tags   []int  `json:"tag_ids"`
+		Action string `json:"action"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "请选择要更新的博主"})
+		return
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	successCount := 0
+
+	for _, bloggerID := range req.IDs {
+		if req.Action == "add" && len(req.Tags) > 0 {
+			for _, tagID := range req.Tags {
+				var exists int
+				h.DB.QueryRow("SELECT COUNT(*) FROM blogger_tags WHERE blogger_id = ? AND tag_id = ?", bloggerID, tagID).Scan(&exists)
+				if exists == 0 {
+					h.DB.Exec("INSERT INTO blogger_tags (blogger_id, tag_id, create_time) VALUES (?, ?, ?)",
+						bloggerID, tagID, now)
+				}
+			}
+			successCount++
+		} else if req.Action == "remove" && len(req.Tags) > 0 {
+			placeholders := strings.Repeat("?,", len(req.Tags))
+			placeholders = placeholders[:len(placeholders)-1]
+			args := make([]interface{}, 0, len(req.Tags)+1)
+			args = append(args, bloggerID)
+			for _, tagID := range req.Tags {
+				args = append(args, tagID)
+			}
+			h.DB.Exec("DELETE FROM blogger_tags WHERE blogger_id = ? AND tag_id IN ("+placeholders+")", args...)
+			successCount++
+		} else if req.Action == "replace" {
+			h.DB.Exec("DELETE FROM blogger_tags WHERE blogger_id = ?", bloggerID)
+			for _, tagID := range req.Tags {
+				h.DB.Exec("INSERT INTO blogger_tags (blogger_id, tag_id, create_time) VALUES (?, ?, ?)",
+					bloggerID, tagID, now)
+			}
+			successCount++
+		}
+	}
+
+	database.AddLog("批量更新", "批量博主", realName, fmt.Sprintf("批量更新 %d 位博主标签", successCount))
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": fmt.Sprintf("成功更新 %d 位博主", successCount),
+		"data": gin.H{
+			"success_count": successCount,
+			"total_count":   len(req.IDs),
+		},
+	})
+}
+
+func (h *BloggerHandler) BatchDelete(c *gin.Context) {
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		realName = "未知用户"
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+
+	if role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+		return
+	}
+
+	var req struct {
+		IDs []int `json:"ids" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "请选择要删除的博主"})
+		return
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	successCount := 0
+
+	for _, id := range req.IDs {
+		var nickname string
+		h.DB.QueryRow("SELECT nickname FROM blogger WHERE id = ?", id).Scan(&nickname)
+
+		result, err := h.DB.Exec("UPDATE blogger SET is_deleted = 1, update_time = ? WHERE id = ?", now, id)
+		if err != nil {
+			continue
+		}
+
+		affected, _ := result.RowsAffected()
+		if affected > 0 {
+			successCount++
+			database.AddLog("删除", nickname, realName, "批量删除博主【"+nickname+"】")
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": fmt.Sprintf("成功删除 %d 位博主", successCount),
+		"data": gin.H{
+			"success_count": successCount,
+			"total_count":   len(req.IDs),
+		},
+	})
+}
+
+func (h *BloggerHandler) SubmitEvaluation(c *gin.Context) {
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+
+	var req struct {
+		BloggerID int    `json:"blogger_id" binding:"required"`
+		Rating    int    `json:"rating"`
+		Comment   string `json:"comment"`
+		Tags      string `json:"tags"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "博主ID不能为空"})
+		return
+	}
+
+	if req.Rating < 1 || req.Rating > 5 {
+		req.Rating = 5
+	}
+
+	var nickname string
+	h.DB.QueryRow("SELECT nickname FROM blogger WHERE id = ? AND is_deleted = 0", req.BloggerID).Scan(&nickname)
+	if nickname == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "博主不存在"})
+		return
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	h.DB.Exec(`INSERT OR REPLACE INTO blogger_evaluations (blogger_id, user_id, rating, comment, tags, create_time, update_time) 
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, req.BloggerID, userID, req.Rating, req.Comment, req.Tags, now, now)
+
+	database.AddLog("评价", "博主【"+nickname+"】", realName, "提交博主评价")
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "评价成功"})
+}
+
+func (h *BloggerHandler) GetEvaluation(c *gin.Context) {
+	bloggerIDStr := c.Param("blogger_id")
+	bloggerID, _ := strconv.Atoi(bloggerIDStr)
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+
+	var evaluation struct {
+		ID         int    `json:"id"`
+		BloggerID  int    `json:"blogger_id"`
+		UserID     int    `json:"user_id"`
+		Rating     int    `json:"rating"`
+		Comment    string `json:"comment"`
+		Tags       string `json:"tags"`
+		CreateTime string `json:"create_time"`
+		UpdateTime string `json:"update_time"`
+	}
+
+	err := h.DB.QueryRow(`SELECT id, blogger_id, user_id, rating, comment, tags, create_time, update_time 
+		FROM blogger_evaluations WHERE blogger_id = ? AND user_id = ?`, bloggerID, userID).Scan(
+		&evaluation.ID, &evaluation.BloggerID, &evaluation.UserID, &evaluation.Rating,
+		&evaluation.Comment, &evaluation.Tags, &evaluation.CreateTime, &evaluation.UpdateTime)
+
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": nil})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": evaluation})
+}
+
+func (h *BloggerHandler) GetInvalidBloggers(c *gin.Context) {
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+
+	query := `SELECT id, nickname, category, product, contact, wechat, platform, platform_account, 
+		description, tags, avatar, user_name, real_name, status, status_update_time, status_remark, 
+		create_time, update_time 
+		FROM blogger WHERE is_deleted = 0 AND is_invalid = 1`
+
+	args := []interface{}{}
+
+	if role != "admin" {
+		query += " AND user_name = (SELECT username FROM users WHERE id = ?)"
+		args = append(args, userID)
+	}
+
+	query += " ORDER BY update_time DESC"
+
+	rows, err := h.DB.Query(query, args...)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []models.Blogger{}})
+		return
+	}
+	defer rows.Close()
+
+	var bloggers []models.Blogger
+	for rows.Next() {
+		var b models.Blogger
+		rows.Scan(&b.ID, &b.Nickname, &b.Category, &b.Product, &b.Contact, &b.Wechat,
+			&b.Platform, &b.PlatformAccount, &b.Description, &b.Tags, &b.Avatar,
+			&b.UserName, &b.RealName, &b.Status, &b.StatusUpdateTime, &b.StatusRemark,
+			&b.CreateTime, &b.UpdateTime)
+		bloggers = append(bloggers, b)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": bloggers})
+}
+
 func (h *BloggerHandler) SetInvalid(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	realName, _ := c.Get("realName")
-	role, _ := c.Get("role")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
@@ -938,15 +1318,21 @@ func (h *BloggerHandler) SetInvalid(c *gin.Context) {
 
 	h.DB.Exec("UPDATE blogger SET is_invalid = 1, update_time = ? WHERE id = ?", time.Now().Format(time.RFC3339), id)
 
-	database.AddLog("标记失效", "博主【"+nickname+"】", realName.(string), "标记博主为失效，原因："+req.Reason)
+	database.AddLog("标记失效", "博主【"+nickname+"】", realName, "标记博主为失效，原因："+req.Reason)
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "标记成功"})
 }
 
 func (h *BloggerHandler) SetValid(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	realName, _ := c.Get("realName")
-	role, _ := c.Get("role")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
@@ -962,16 +1348,27 @@ func (h *BloggerHandler) SetValid(c *gin.Context) {
 
 	h.DB.Exec("UPDATE blogger SET is_invalid = 0, update_time = ? WHERE id = ?", time.Now().Format(time.RFC3339), id)
 
-	database.AddLog("标记有效", "博主【"+nickname+"】", realName.(string), "标记博主为有效")
+	database.AddLog("标记有效", "博主【"+nickname+"】", realName, "标记博主为有效")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "标记成功"})
 }
 
 func (h *BloggerHandler) CreateTransferRequest(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	userID, _ := c.Get("userID")
-	userName, _ := c.Get("username")
-	realName, _ := c.Get("realName")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	userNameVal, _ := c.Get("username")
+	userName, _ := userNameVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 
 	var b models.Blogger
 	err := h.DB.QueryRow(`SELECT id, nickname, user_name FROM blogger WHERE id = ? AND is_deleted = 0`, id).Scan(
@@ -996,7 +1393,7 @@ func (h *BloggerHandler) CreateTransferRequest(c *gin.Context) {
 		return
 	}
 
-	if req.ToUserID == userID.(int) {
+	if req.ToUserID == userID {
 		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "不能转移给自己"})
 		return
 	}
@@ -1019,10 +1416,10 @@ func (h *BloggerHandler) CreateTransferRequest(c *gin.Context) {
 	h.DB.Exec(`INSERT INTO notifications (user_id, type, title, content, priority, blogger_id, from_user, create_time)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		req.ToUserID, "transfer_request", "🔄 博主转移申请",
-		"【"+realName.(string)+"】申请将博主【"+b.Nickname+"】转移给您，请处理。",
+		"【"+realName+"】申请将博主【"+b.Nickname+"】转移给您，请处理。",
 		"important", id, realName, now)
 
-	database.AddLog("转移申请", "博主【"+b.Nickname+"】", realName.(string), "申请转移博主给【"+toRealName+"】")
+	database.AddLog("转移申请", "博主【"+b.Nickname+"】", realName, "申请转移博主给【"+toRealName+"】")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
@@ -1032,8 +1429,14 @@ func (h *BloggerHandler) CreateTransferRequest(c *gin.Context) {
 }
 
 func (h *BloggerHandler) GetTransferRequests(c *gin.Context) {
-	userID, _ := c.Get("userID")
-	role, _ := c.Get("role")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 
 	var query string
 	var args []interface{}
@@ -1069,9 +1472,20 @@ func (h *BloggerHandler) GetTransferRequests(c *gin.Context) {
 
 func (h *BloggerHandler) ConfirmTransferRequest(c *gin.Context) {
 	transferID, _ := strconv.Atoi(c.Param("id"))
-	userID, _ := c.Get("userID")
-	realName, _ := c.Get("realName")
-	role, _ := c.Get("role")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 
 	var req struct {
 		Action string `json:"action" binding:"required"`
@@ -1100,7 +1514,7 @@ func (h *BloggerHandler) ConfirmTransferRequest(c *gin.Context) {
 
 	if req.Action == "reject" {
 		h.DB.Exec("UPDATE blogger_transfer_requests SET status = 'rejected' WHERE id = ?", transferID)
-		database.AddLog("拒绝转移", "博主【"+r.BloggerName+"】", realName.(string), "拒绝博主转移申请")
+		database.AddLog("拒绝转移", "博主【"+r.BloggerName+"】", realName, "拒绝博主转移申请")
 		c.JSON(http.StatusOK, gin.H{"code": 200, "message": "已拒绝"})
 		return
 	}
@@ -1112,26 +1526,353 @@ func (h *BloggerHandler) ConfirmTransferRequest(c *gin.Context) {
 
 	if role == "admin" {
 		h.DB.Exec("UPDATE blogger_transfer_requests SET admin_confirmed = 1, status = 'completed' WHERE id = ?", transferID)
+		var toRealName string
+		h.DB.QueryRow("SELECT real_name FROM users WHERE id = ?", r.ToUserID).Scan(&toRealName)
 		h.DB.Exec(`UPDATE blogger SET user_name = ?, real_name = ?, update_time = ? WHERE id = ?`,
-			r.ToUserName, r.ToUserName, time.Now().Format(time.RFC3339), r.BloggerID)
-		database.AddLog("确认转移", "博主【"+r.BloggerName+"】", realName.(string), "管理员确认博主转移")
+			r.ToUserName, toRealName, time.Now().Format(time.RFC3339), r.BloggerID)
+		database.AddLog("确认转移", "博主【"+r.BloggerName+"】", realName, "管理员确认博主转移")
 		c.JSON(http.StatusOK, gin.H{"code": 200, "message": "转移成功"})
 		return
 	}
 
-	if userID.(int) == r.ToUserID {
+	if userID == r.ToUserID {
 		h.DB.Exec("UPDATE blogger_transfer_requests SET to_confirmed = 1 WHERE id = ?", transferID)
 		var fromConfirmed, toConfirmed int
 		h.DB.QueryRow("SELECT from_confirmed, to_confirmed FROM blogger_transfer_requests WHERE id = ?", transferID).Scan(&fromConfirmed, &toConfirmed)
 		if fromConfirmed == 1 && toConfirmed == 1 {
 			h.DB.Exec("UPDATE blogger_transfer_requests SET status = 'completed' WHERE id = ?", transferID)
+			var toRealName string
+			h.DB.QueryRow("SELECT real_name FROM users WHERE id = ?", r.ToUserID).Scan(&toRealName)
 			h.DB.Exec(`UPDATE blogger SET user_name = ?, real_name = ?, update_time = ? WHERE id = ?`,
-				r.ToUserName, r.ToUserName, time.Now().Format(time.RFC3339), r.BloggerID)
-			database.AddLog("完成转移", "博主【"+r.BloggerName+"】", realName.(string), "博主转移完成")
+				r.ToUserName, toRealName, time.Now().Format(time.RFC3339), r.BloggerID)
+			database.AddLog("完成转移", "博主【"+r.BloggerName+"】", realName, "博主转移完成")
 		}
 		c.JSON(http.StatusOK, gin.H{"code": 200, "message": "已确认"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 403, "message": "无权限操作"})
+}
+
+func (h *BloggerHandler) GetFollowupList(c *gin.Context) {
+	bloggerIDStr := c.Query("blogger_id")
+	if bloggerIDStr == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []models.Followup{}})
+		return
+	}
+
+	bloggerID, _ := strconv.Atoi(bloggerIDStr)
+	rows, err := h.DB.Query(`SELECT id, blogger_id, content, type, operator, create_time 
+		FROM followup WHERE blogger_id = ? ORDER BY create_time DESC`, bloggerID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []models.Followup{}})
+		return
+	}
+	defer rows.Close()
+
+	var followups []models.Followup
+	for rows.Next() {
+		var f models.Followup
+		rows.Scan(&f.ID, &f.BloggerID, &f.Content, &f.Type, &f.Operator, &f.CreateTime)
+		followups = append(followups, f)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": followups})
+}
+
+func (h *BloggerHandler) CreateFollowupV2(c *gin.Context) {
+	var req struct {
+		BloggerID int    `json:"blogger_id" binding:"required"`
+		Content   string `json:"content" binding:"required"`
+		Type      string `json:"type"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "内容不能为空"})
+		return
+	}
+
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	followupType := req.Type
+	if followupType == "" {
+		followupType = "跟进"
+	}
+
+	result, err := h.DB.Exec(`INSERT INTO followup (blogger_id, content, type, operator) 
+		VALUES (?, ?, ?, ?)`, req.BloggerID, req.Content, followupType, realName)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
+		return
+	}
+
+	followupID, _ := result.LastInsertId()
+
+	database.AddLog("跟进", "博主跟进记录", realName, "添加博主跟进记录")
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "添加成功",
+		"data":    gin.H{"id": followupID},
+	})
+}
+
+func (h *BloggerHandler) UpdateFollowupV2(c *gin.Context) {
+	followupID, _ := strconv.Atoi(c.Param("id"))
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+
+	var operator string
+	h.DB.QueryRow("SELECT operator FROM followup WHERE id = ?", followupID).Scan(&operator)
+	if operator == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "跟进记录不存在"})
+		return
+	}
+
+	if role != "admin" && operator != realName {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "无权限修改此跟进记录"})
+		return
+	}
+
+	var req struct {
+		Content string `json:"content"`
+		Type    string `json:"type"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+
+	updates := []string{}
+	args := []interface{}{}
+
+	if req.Content != "" {
+		updates = append(updates, "content = ?")
+		args = append(args, req.Content)
+	}
+	if req.Type != "" {
+		updates = append(updates, "type = ?")
+		args = append(args, req.Type)
+	}
+
+	if len(updates) > 0 {
+		args = append(args, followupID)
+		query := "UPDATE followup SET " + strings.Join(updates, ", ") + " WHERE id = ?"
+		h.DB.Exec(query, args...)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
+}
+
+func (h *BloggerHandler) DeleteFollowupV2(c *gin.Context) {
+	followupID, _ := strconv.Atoi(c.Param("id"))
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+
+	var operator string
+	h.DB.QueryRow("SELECT operator FROM followup WHERE id = ?", followupID).Scan(&operator)
+	if operator == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "跟进记录不存在"})
+		return
+	}
+
+	if role != "admin" && operator != realName {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "无权限删除此跟进记录"})
+		return
+	}
+
+	h.DB.Exec("DELETE FROM followup WHERE id = ?", followupID)
+
+	database.AddLog("删除", "跟进记录", realName, "删除跟进记录")
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
+}
+
+func (h *BloggerHandler) GetCooperationList(c *gin.Context) {
+	bloggerIDStr := c.Query("blogger_id")
+	if bloggerIDStr == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []models.Cooperation{}})
+		return
+	}
+
+	bloggerID, _ := strconv.Atoi(bloggerIDStr)
+	rows, err := h.DB.Query(`SELECT id, blogger_id, title, date, status, product, amount, note, create_time, update_time 
+		FROM cooperation WHERE blogger_id = ? ORDER BY create_time DESC`, bloggerID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []models.Cooperation{}})
+		return
+	}
+	defer rows.Close()
+
+	var cooperations []models.Cooperation
+	for rows.Next() {
+		var coop models.Cooperation
+		rows.Scan(&coop.ID, &coop.BloggerID, &coop.Title, &coop.Date, &coop.Status, &coop.Product, &coop.Amount, &coop.Note, &coop.CreateTime, &coop.UpdateTime)
+		cooperations = append(cooperations, coop)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": cooperations})
+}
+
+func (h *BloggerHandler) CreateCooperationV2(c *gin.Context) {
+	var req struct {
+		BloggerID int     `json:"blogger_id" binding:"required"`
+		Title     string  `json:"title" binding:"required"`
+		Date      string  `json:"date"`
+		Status    string  `json:"status"`
+		Product   string  `json:"product"`
+		Amount    float64 `json:"amount"`
+		Note      string  `json:"note"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "标题不能为空"})
+		return
+	}
+
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	status := req.Status
+	if status == "" {
+		status = "进行中"
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	result, err := h.DB.Exec(`INSERT INTO cooperation (blogger_id, title, date, status, product, amount, note, create_time, update_time) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, req.BloggerID, req.Title, req.Date, status, req.Product, req.Amount, req.Note, now, now)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
+		return
+	}
+
+	coopID, _ := result.LastInsertId()
+
+	database.AddLog("合作", "合作记录", realName, "添加合作记录【"+req.Title+"】")
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "添加成功",
+		"data":    gin.H{"id": coopID},
+	})
+}
+
+func (h *BloggerHandler) UpdateCooperationV2(c *gin.Context) {
+	coopID, _ := strconv.Atoi(c.Param("id"))
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+
+	var exists int
+	h.DB.QueryRow("SELECT COUNT(*) FROM cooperation WHERE id = ?", coopID).Scan(&exists)
+	if exists == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "合作记录不存在"})
+		return
+	}
+
+	var req struct {
+		Title   string  `json:"title"`
+		Date    string  `json:"date"`
+		Status  string  `json:"status"`
+		Product string  `json:"product"`
+		Amount  float64 `json:"amount"`
+		Note    string  `json:"note"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+
+	updates := []string{}
+	args := []interface{}{}
+
+	if req.Title != "" {
+		updates = append(updates, "title = ?")
+		args = append(args, req.Title)
+	}
+	if req.Date != "" {
+		updates = append(updates, "date = ?")
+		args = append(args, req.Date)
+	}
+	if req.Status != "" {
+		updates = append(updates, "status = ?")
+		args = append(args, req.Status)
+	}
+	if req.Product != "" {
+		updates = append(updates, "product = ?")
+		args = append(args, req.Product)
+	}
+	if req.Amount != 0 {
+		updates = append(updates, "amount = ?")
+		args = append(args, req.Amount)
+	}
+	if req.Note != "" {
+		updates = append(updates, "note = ?")
+		args = append(args, req.Note)
+	}
+
+	if len(updates) > 0 {
+		updates = append(updates, "update_time = ?")
+		args = append(args, time.Now().Format(time.RFC3339), coopID)
+		query := "UPDATE cooperation SET " + strings.Join(updates, ", ") + " WHERE id = ?"
+		h.DB.Exec(query, args...)
+	}
+
+	database.AddLog("编辑", "合作记录", realName, "编辑合作记录")
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
+}
+
+func (h *BloggerHandler) DeleteCooperationV2(c *gin.Context) {
+	coopID, _ := strconv.Atoi(c.Param("id"))
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+
+	if role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+		return
+	}
+
+	var title string
+	h.DB.QueryRow("SELECT title FROM cooperation WHERE id = ?", coopID).Scan(&title)
+	if title == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "合作记录不存在"})
+		return
+	}
+
+	h.DB.Exec("DELETE FROM cooperation WHERE id = ?", coopID)
+
+	database.AddLog("删除", "合作记录【"+title+"】", realName, "删除合作记录")
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }

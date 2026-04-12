@@ -1,11 +1,11 @@
 package handlers
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -96,7 +96,8 @@ func (h *MiscHandler) GetProducts(c *gin.Context) {
 }
 
 func (h *MiscHandler) AddCategory(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -130,14 +131,20 @@ func (h *MiscHandler) AddCategory(c *gin.Context) {
 	}
 
 	h.DB.Exec("INSERT INTO categories (name, color, icon) VALUES (?, ?, ?)", req.Name, color, icon)
-	realName, _ := c.Get("realName")
-	database.AddLog("新增", "分类【"+req.Name+"】", realName.(string), "新增分类【"+req.Name+"】")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	database.AddLog("新增", "分类【"+req.Name+"】", realName, "新增分类【"+req.Name+"】")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "添加成功"})
 }
 
 func (h *MiscHandler) UpdateCategory(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -185,18 +192,24 @@ func (h *MiscHandler) UpdateCategory(c *gin.Context) {
 		h.DB.Exec(query, args...)
 	}
 
-	realName, _ := c.Get("realName")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 	newName := req.Name
 	if newName == "" {
 		newName = oldName
 	}
-	database.AddLog("编辑", "分类【"+oldName+"】", realName.(string), "编辑分类【"+oldName+"】→【"+newName+"】")
+	database.AddLog("编辑", "分类【"+oldName+"】", realName, "编辑分类【"+oldName+"】→【"+newName+"】")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
 }
 
 func (h *MiscHandler) DeleteCategory(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -219,14 +232,20 @@ func (h *MiscHandler) DeleteCategory(c *gin.Context) {
 	}
 
 	h.DB.Exec("DELETE FROM categories WHERE id = ?", req.ID)
-	realName, _ := c.Get("realName")
-	database.AddLog("删除", "分类【"+name+"】", realName.(string), "删除分类【"+name+"】")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	database.AddLog("删除", "分类【"+name+"】", realName, "删除分类【"+name+"】")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
 
 func (h *MiscHandler) AddProduct(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -249,10 +268,81 @@ func (h *MiscHandler) AddProduct(c *gin.Context) {
 	}
 
 	h.DB.Exec("INSERT INTO products (name) VALUES (?)", req.Name)
-	realName, _ := c.Get("realName")
-	database.AddLog("新增", "产品【"+req.Name+"】", realName.(string), "新增产品【"+req.Name+"】")
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	database.AddLog("新增", "产品【"+req.Name+"】", realName, "新增产品【"+req.Name+"】")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "添加成功"})
+}
+
+func (h *MiscHandler) UpdateProduct(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	if role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+		return
+	}
+
+	id := c.Param("id")
+	var req struct {
+		Name string `json:"name"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil || req.Name == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "产品名称不能为空"})
+		return
+	}
+
+	var count int
+	h.DB.QueryRow("SELECT COUNT(*) FROM products WHERE id = ?", id).Scan(&count)
+	if count == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "产品不存在"})
+		return
+	}
+
+	h.DB.Exec("UPDATE products SET name = ? WHERE id = ?", req.Name, id)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	database.AddLog("更新", "产品【"+req.Name+"】", realName, "更新产品【"+req.Name+"】")
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
+}
+
+func (h *MiscHandler) DeleteProduct(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	if role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+		return
+	}
+
+	id := c.Param("id")
+
+	var name string
+	h.DB.QueryRow("SELECT name FROM products WHERE id = ?", id).Scan(&name)
+	if name == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "产品不存在"})
+		return
+	}
+
+	h.DB.Exec("DELETE FROM products WHERE id = ?", id)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	database.AddLog("删除", "产品【"+name+"】", realName, "删除产品【"+name+"】")
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
 
 func (h *MiscHandler) GetBloggerStat(c *gin.Context) {
@@ -287,10 +377,14 @@ func (h *MiscHandler) GetBloggerStat(c *gin.Context) {
 
 	byUser := []map[string]interface{}{}
 	for name, count := range byUserMap {
+		percentage := 0.0
+		if total > 0 {
+			percentage = float64(count) / float64(total) * 100
+		}
 		byUser = append(byUser, map[string]interface{}{
 			"real_name":  name,
 			"count":      count,
-			"percentage": fmt.Sprintf("%.1f%%", float64(count)/float64(total)*100),
+			"percentage": fmt.Sprintf("%.1f%%", percentage),
 		})
 	}
 
@@ -307,10 +401,14 @@ func (h *MiscHandler) GetBloggerStat(c *gin.Context) {
 
 	byCategory := []map[string]interface{}{}
 	for cat, count := range byCategoryMap {
+		percentage := 0.0
+		if total > 0 {
+			percentage = float64(count) / float64(total) * 100
+		}
 		byCategory = append(byCategory, map[string]interface{}{
 			"category":   cat,
 			"count":      count,
-			"percentage": fmt.Sprintf("%.1f%%", float64(count)/float64(total)*100),
+			"percentage": fmt.Sprintf("%.1f%%", percentage),
 		})
 	}
 
@@ -325,10 +423,14 @@ func (h *MiscHandler) GetBloggerStat(c *gin.Context) {
 
 	byPlatform := []map[string]interface{}{}
 	for plat, count := range byPlatformMap {
+		percentage := 0.0
+		if total > 0 {
+			percentage = float64(count) / float64(total) * 100
+		}
 		byPlatform = append(byPlatform, map[string]interface{}{
 			"platform":   plat,
 			"count":      count,
-			"percentage": fmt.Sprintf("%.1f%%", float64(count)/float64(total)*100),
+			"percentage": fmt.Sprintf("%.1f%%", percentage),
 		})
 	}
 
@@ -454,7 +556,8 @@ func (h *MiscHandler) GetInvalidBloggerCount(c *gin.Context) {
 }
 
 func (h *MiscHandler) GetPublicUsers(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	testUsernames := map[string]bool{"test": true, "testuser": true}
 
 	rows, err := h.DB.Query(`SELECT id, username, real_name, avatar, bio, role, status, team_id, create_time, approved_by, approved_time 
@@ -504,7 +607,8 @@ func (h *MiscHandler) GetPublicUsers(c *gin.Context) {
 }
 
 func (h *MiscHandler) GetOperationLog(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -541,27 +645,30 @@ func (h *MiscHandler) GetOperationLog(c *gin.Context) {
 
 func (h *MiscHandler) GetBloggerHotData(c *gin.Context) {
 	_ = c.Param("nickname")
-	hotData := map[string]interface{}{
-		"heat":       rand.Intn(10000) + 1000,
-		"followers":  rand.Intn(1000000) + 10000,
-		"engagement": fmt.Sprintf("%.2f%%", rand.Float64()*10+1),
-		"updateTime": time.Now().Format(time.RFC3339),
-	}
-	c.JSON(http.StatusOK, gin.H{"code": 200, "data": hotData})
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"trend":     []interface{}{},
+			"followers": []interface{}{},
+			"message":   "数据暂未接入",
+		},
+	})
 }
 
 func (h *MiscHandler) GetBloggerNews(c *gin.Context) {
-	nickname := c.Param("nickname")
-	news := []map[string]interface{}{
-		{"title": nickname + " 最新作品发布", "url": "#", "time": "2小时前"},
-		{"title": nickname + " 粉丝突破新高", "url": "#", "time": "1天前"},
-		{"title": nickname + " 参与品牌活动", "url": "#", "time": "3天前"},
-	}
-	c.JSON(http.StatusOK, gin.H{"code": 200, "data": news})
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": []interface{}{},
+	})
 }
 
 func (h *MiscHandler) GetNotifications(c *gin.Context) {
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 	rows, err := h.DB.Query(`SELECT id, user_id, type, title, content, priority, team_id, from_user, blogger_id, post_id, is_read, create_time 
 		FROM notifications WHERE user_id = ? ORDER BY create_time DESC`, userID)
 
@@ -608,15 +715,93 @@ func (h *MiscHandler) GetNotifications(c *gin.Context) {
 
 func (h *MiscHandler) MarkNotificationRead(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 	h.DB.Exec("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?", id, userID)
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "已标记为已读"})
 }
 
 func (h *MiscHandler) MarkAllNotificationsRead(c *gin.Context) {
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
 	h.DB.Exec("UPDATE notifications SET is_read = 1 WHERE user_id = ?", userID)
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "已全部标记为已读"})
+}
+
+func (h *MiscHandler) DeleteNotification(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	result, err := h.DB.Exec("DELETE FROM notifications WHERE id = ? AND user_id = ?", id, userID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "删除失败"})
+		return
+	}
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "通知不存在"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
+}
+
+func (h *MiscHandler) BatchDeleteNotifications(c *gin.Context) {
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	var req struct {
+		IDs []int `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+	tx, err := h.DB.Begin()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "删除失败"})
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	stmt, err := tx.Prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?")
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "删除失败"})
+		return
+	}
+	defer stmt.Close()
+	for _, id := range req.IDs {
+		_, err = stmt.Exec(id, userID)
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusOK, gin.H{"code": 500, "message": "删除失败"})
+			return
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "删除失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
 
 func (h *MiscHandler) GetAnnouncements(c *gin.Context) {
@@ -674,40 +859,72 @@ func (h *MiscHandler) UploadBloggerAvatar(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("[UploadBloggerAvatar] JSON bind error: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
 
 	idx := strings.Index(req.Image, ",")
 	if idx == -1 {
 		log.Printf("[UploadBloggerAvatar] Invalid image format - no comma found")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image format"})
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "Invalid image format"})
+		return
+	}
+
+	allowedTypes := map[string]bool{
+		"data:image/jpeg": true,
+		"data:image/png":  true,
+		"data:image/gif":  true,
+		"data:image/webp": true,
+	}
+	validType := false
+	for prefix := range allowedTypes {
+		if strings.HasPrefix(req.Image, prefix) {
+			validType = true
+			break
+		}
+	}
+	if !validType {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "仅支持 JPG、PNG、GIF、WebP 格式的图片"})
 		return
 	}
 
 	imageData := req.Image[idx+1:]
 	log.Printf("[UploadBloggerAvatar] Base64 data length: %d", len(imageData))
 
+	if len(req.Image) > 7*1024*1024 {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "文件大小不能超过5MB"})
+		return
+	}
+
+	ext := ".jpg"
+	if strings.HasPrefix(req.Image, "data:image/png") {
+		ext = ".png"
+	} else if strings.HasPrefix(req.Image, "data:image/gif") {
+		ext = ".gif"
+	} else if strings.HasPrefix(req.Image, "data:image/webp") {
+		ext = ".webp"
+	}
+
 	decoded, err := base64.StdEncoding.DecodeString(imageData)
 	if err != nil {
 		log.Printf("[UploadBloggerAvatar] Base64 decode error: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to decode image"})
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "Failed to decode image"})
 		return
 	}
 
 	uploadDir := filepath.Join(h.Cfg.UploadPath, "avatars")
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		log.Printf("[UploadBloggerAvatar] Failed to create directory: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to create upload directory"})
 		return
 	}
 
-	filename := fmt.Sprintf("%s_%d.jpg", uuid.New().String()[:8], time.Now().Unix())
+	filename := fmt.Sprintf("%s_%d%s", uuid.New().String()[:8], time.Now().UnixMilli(), ext)
 	filePath := filepath.Join(uploadDir, filename)
 
 	if err := os.WriteFile(filePath, decoded, 0644); err != nil {
 		log.Printf("[UploadBloggerAvatar] Failed to save file: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to save file"})
 		return
 	}
 
@@ -733,6 +950,18 @@ func (h *MiscHandler) UploadUserAvatar(c *gin.Context) {
 
 	if file.Size > 5*1024*1024 {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "图片大小不能超过5MB"})
+		return
+	}
+
+	contentType := file.Header.Get("Content-Type")
+	allowedContentTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/gif":  true,
+		"image/webp": true,
+	}
+	if contentType != "" && !allowedContentTypes[contentType] {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "仅支持 JPG、PNG、GIF、WebP 格式的图片"})
 		return
 	}
 
@@ -947,7 +1176,8 @@ func (h *MiscHandler) UploadTeamBgImage(c *gin.Context) {
 }
 
 func (h *MiscHandler) GetSnapshots(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -972,11 +1202,16 @@ func (h *MiscHandler) GetSnapshots(c *gin.Context) {
 }
 
 func (h *MiscHandler) CreateSnapshot(c *gin.Context) {
-	role, _ := c.Get("role")
-	realName, _ := c.Get("realName")
-	realNameStr, _ := realName.(string)
-	if realNameStr == "" {
-		realNameStr = "未知用户"
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	if realName == "" {
+		realName = "未知用户"
 	}
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
@@ -1024,7 +1259,7 @@ func (h *MiscHandler) CreateSnapshot(c *gin.Context) {
 
 	snapshotID, _ := result.LastInsertId()
 
-	database.AddLog("快照", "创建快照【"+req.Name+"】", realNameStr, "创建数据库快照")
+	database.AddLog("快照", "创建快照【"+req.Name+"】", realName, "创建数据库快照")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
@@ -1035,11 +1270,16 @@ func (h *MiscHandler) CreateSnapshot(c *gin.Context) {
 
 func (h *MiscHandler) DeleteSnapshot(c *gin.Context) {
 	idOrFilename := c.Param("id")
-	role, _ := c.Get("role")
-	realName, _ := c.Get("realName")
-	realNameStr, _ := realName.(string)
-	if realNameStr == "" {
-		realNameStr = "未知用户"
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	if realName == "" {
+		realName = "未知用户"
 	}
 
 	if role != "admin" {
@@ -1063,17 +1303,25 @@ func (h *MiscHandler) DeleteSnapshot(c *gin.Context) {
 	}
 
 	snapshotPath := filepath.Join(h.Cfg.UploadPath, "snapshots", filename)
+	absPath, _ := filepath.Abs(snapshotPath)
+	snapshotDir, _ := filepath.Abs(filepath.Join(h.Cfg.UploadPath, "snapshots"))
+	if !strings.HasPrefix(absPath, snapshotDir+string(filepath.Separator)) {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "非法文件路径"})
+		return
+	}
+
 	os.Remove(snapshotPath)
 
 	h.DB.Exec("DELETE FROM snapshots WHERE filename = ?", filename)
 
-	database.AddLog("删除快照", "快照:"+filename, realNameStr, "删除数据库快照")
+	database.AddLog("删除快照", "快照:"+filename, realName, "删除数据库快照")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
 
 func (h *MiscHandler) GetSnapshotSettings(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -1083,19 +1331,34 @@ func (h *MiscHandler) GetSnapshotSettings(c *gin.Context) {
 	var backupInterval int
 	var keepBackups int
 
-	err := h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'auto_backup'`).Scan(&autoBackup)
+	var autoBackupStr string
+	err := h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'auto_backup'`).Scan(&autoBackupStr)
 	if err != nil {
-		autoBackup = false
+		autoBackup = true
+	} else {
+		autoBackup = autoBackupStr == "true"
 	}
 
-	err = h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'backup_interval'`).Scan(&backupInterval)
-	if err != nil || backupInterval == 0 {
+	var backupIntervalStr string
+	err = h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'backup_interval'`).Scan(&backupIntervalStr)
+	if err != nil {
 		backupInterval = 24
+	} else {
+		backupInterval, _ = strconv.Atoi(backupIntervalStr)
+		if backupInterval == 0 {
+			backupInterval = 24
+		}
 	}
 
-	err = h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'keep_backups'`).Scan(&keepBackups)
-	if err != nil || keepBackups == 0 {
+	var keepBackupsStr string
+	err = h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'keep_backups'`).Scan(&keepBackupsStr)
+	if err != nil {
 		keepBackups = 7
+	} else {
+		keepBackups, _ = strconv.Atoi(keepBackupsStr)
+		if keepBackups == 0 {
+			keepBackups = 7
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1109,7 +1372,8 @@ func (h *MiscHandler) GetSnapshotSettings(c *gin.Context) {
 }
 
 func (h *MiscHandler) SetSnapshotSettings(c *gin.Context) {
-	role, _ := c.Get("role")
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
 	if role != "admin" {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
 		return
@@ -1138,11 +1402,16 @@ func (h *MiscHandler) CreateBackup(c *gin.Context) {
 }
 
 func (h *MiscHandler) PurgeData(c *gin.Context) {
-	role, _ := c.Get("role")
-	realName, _ := c.Get("realName")
-	realNameStr, _ := realName.(string)
-	if realNameStr == "" {
-		realNameStr = "未知用户"
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	if realName == "" {
+		realName = "未知用户"
 	}
 
 	if role != "admin" {
@@ -1163,19 +1432,46 @@ func (h *MiscHandler) PurgeData(c *gin.Context) {
 	h.DB.Exec("DELETE FROM operation_log WHERE create_time < ?", now.AddDate(0, -3, 0))
 	h.DB.Exec("DELETE FROM notifications WHERE is_read = 1 AND create_time < ?", now.AddDate(0, -1, 0))
 
-	database.AddLog("数据清理", "清理旧数据", realNameStr, "清理3个月前的操作日志和1个月前的已读通知")
+	database.AddLog("数据清理", "清理旧数据", realName, "清理3个月前的操作日志和1个月前的已读通知")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "数据清理完成"})
 }
 
-func (h *MiscHandler) DownloadSnapshot(c *gin.Context) {
-	filename := c.Param("filename")
+func sanitizeSnapshotFilename(filename string) (string, error) {
 	if filename == "" {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "文件名不能为空"})
+		return "", fmt.Errorf("文件名不能为空")
+	}
+	if strings.Contains(filename, "..") || strings.ContainsAny(filename, "/\\") {
+		return "", fmt.Errorf("非法文件名")
+	}
+	if !strings.HasPrefix(filename, "snapshot_") || !strings.HasSuffix(filename, ".db") {
+		return "", fmt.Errorf("非法快照文件名")
+	}
+	return filename, nil
+}
+
+func (h *MiscHandler) DownloadSnapshot(c *gin.Context) {
+	role, _ := c.Get("role")
+	if role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+		return
+	}
+
+	filename := c.Param("filename")
+	filename, err := sanitizeSnapshotFilename(filename)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
 
 	snapshotPath := filepath.Join(h.Cfg.UploadPath, "snapshots", filename)
+	absPath, _ := filepath.Abs(snapshotPath)
+	snapshotDir, _ := filepath.Abs(filepath.Join(h.Cfg.UploadPath, "snapshots"))
+	if !strings.HasPrefix(absPath, snapshotDir+string(filepath.Separator)) {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "非法文件路径"})
+		return
+	}
+
 	if _, err := os.Stat(snapshotPath); os.IsNotExist(err) {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "快照不存在"})
 		return
@@ -1186,11 +1482,16 @@ func (h *MiscHandler) DownloadSnapshot(c *gin.Context) {
 
 func (h *MiscHandler) RestoreSnapshot(c *gin.Context) {
 	filename := c.Param("filename")
-	role, _ := c.Get("role")
-	realName, _ := c.Get("realName")
-	realNameStr, _ := realName.(string)
-	if realNameStr == "" {
-		realNameStr = "未知用户"
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	if realName == "" {
+		realName = "未知用户"
 	}
 
 	if role != "admin" {
@@ -1198,7 +1499,20 @@ func (h *MiscHandler) RestoreSnapshot(c *gin.Context) {
 		return
 	}
 
+	filename, err := sanitizeSnapshotFilename(filename)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+
 	snapshotPath := filepath.Join(h.Cfg.UploadPath, "snapshots", filename)
+	absPath, _ := filepath.Abs(snapshotPath)
+	snapshotDir, _ := filepath.Abs(filepath.Join(h.Cfg.UploadPath, "snapshots"))
+	if !strings.HasPrefix(absPath, snapshotDir+string(filepath.Separator)) {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "非法文件路径"})
+		return
+	}
+
 	if _, err := os.Stat(snapshotPath); os.IsNotExist(err) {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "快照不存在"})
 		return
@@ -1215,17 +1529,22 @@ func (h *MiscHandler) RestoreSnapshot(c *gin.Context) {
 		return
 	}
 
-	database.AddLog("快照", "还原快照【"+filename+"】", realNameStr, "还原数据库快照")
+	database.AddLog("快照", "还原快照【"+filename+"】", realName, "还原数据库快照")
 
-	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "快照还原成功"})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "数据库已还原，请重启服务以使更改生效"})
 }
 
 func (h *MiscHandler) ClearData(c *gin.Context) {
-	role, _ := c.Get("role")
-	realName, _ := c.Get("realName")
-	realNameStr, _ := realName.(string)
-	if realNameStr == "" {
-		realNameStr = "未知用户"
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	if realName == "" {
+		realName = "未知用户"
 	}
 
 	if role != "admin" {
@@ -1233,13 +1552,345 @@ func (h *MiscHandler) ClearData(c *gin.Context) {
 		return
 	}
 
-	h.DB.Exec("DELETE FROM bloggers")
-	h.DB.Exec("DELETE FROM follow_ups")
-	h.DB.Exec("DELETE FROM collaborations")
-	h.DB.Exec("DELETE FROM operation_log")
-	h.DB.Exec("DELETE FROM notifications")
+	tx, err := h.DB.Begin()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "开启事务失败"})
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
-	database.AddLog("清空数据", "清空所有数据", realNameStr, "清空博主、跟进、合作、日志和通知")
+	statements := []string{
+		"DELETE FROM blogger",
+		"DELETE FROM followup",
+		"DELETE FROM cooperation",
+		"DELETE FROM operation_log",
+		"DELETE FROM notifications",
+		"DELETE FROM teams",
+		"DELETE FROM team_posts",
+		"DELETE FROM team_post_comments",
+		"DELETE FROM team_post_likes",
+		"DELETE FROM team_post_collects",
+		"DELETE FROM team_messages",
+		"DELETE FROM public_posts",
+		"DELETE FROM public_post_comments",
+		"DELETE FROM public_post_likes",
+		"DELETE FROM public_post_collects",
+		"DELETE FROM announcements",
+		"DELETE FROM blogger_transfer_requests",
+		"DELETE FROM blogger_evaluations",
+		"DELETE FROM blogger_status_history",
+		"DELETE FROM private_messages",
+		"DELETE FROM snapshots",
+		"UPDATE users SET team_id = NULL, team_name = NULL, team_color = NULL",
+	}
+
+	for _, stmt := range statements {
+		_, err = tx.Exec(stmt)
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusOK, gin.H{"code": 500, "message": "数据清空失败"})
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "提交事务失败"})
+		return
+	}
+
+	database.AddLog("清空数据", "清空所有数据", realName, "清空博主、跟进，合作、团队、帖子、通知等所有业务数据")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "数据清空完成"})
+}
+
+func (h *MiscHandler) GetTeamBloggerStat(c *gin.Context) {
+	teamIDStr := c.Query("team_id")
+	if teamIDStr == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{"stats": gin.H{}}})
+		return
+	}
+
+	teamID, _ := strconv.Atoi(teamIDStr)
+
+	var total int
+	h.DB.QueryRow(`SELECT COUNT(*) FROM blogger b 
+		INNER JOIN users u ON b.user_name = u.username 
+		WHERE b.is_deleted = 0 AND u.team_id = ?`, teamID).Scan(&total)
+
+	today := time.Now().Format("2006-01-02")
+	var todayCount int
+	h.DB.QueryRow(`SELECT COUNT(*) FROM blogger b 
+		INNER JOIN users u ON b.user_name = u.username 
+		WHERE b.is_deleted = 0 AND u.team_id = ? AND DATE(b.create_time) = ?`, teamID, today).Scan(&todayCount)
+
+	monthStart := time.Date(time.Now().Year(), time.Now().Month(), 1, 0, 0, 0, 0, time.Local).Format("2006-01-02")
+	var monthCount int
+	h.DB.QueryRow(`SELECT COUNT(*) FROM blogger b 
+		INNER JOIN users u ON b.user_name = u.username 
+		WHERE b.is_deleted = 0 AND u.team_id = ? AND DATE(b.create_time) >= ?`, teamID, monthStart).Scan(&monthCount)
+
+	rows, _ := h.DB.Query(`SELECT DISTINCT b.user_name FROM blogger b 
+		INNER JOIN users u ON b.user_name = u.username 
+		WHERE b.is_deleted = 0 AND u.team_id = ?`, teamID)
+	var users int
+	for rows.Next() {
+		users++
+	}
+	rows.Close()
+
+	byUserMap := make(map[string]int)
+	rows, _ = h.DB.Query(`SELECT u.real_name FROM blogger b 
+		INNER JOIN users u ON b.user_name = u.username 
+		WHERE b.is_deleted = 0 AND u.team_id = ?`, teamID)
+	for rows.Next() {
+		var realName string
+		rows.Scan(&realName)
+		byUserMap[realName]++
+	}
+	rows.Close()
+
+	byUser := []map[string]interface{}{}
+	for name, count := range byUserMap {
+		byUser = append(byUser, map[string]interface{}{
+			"real_name": name,
+			"count":     count,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"stats": gin.H{
+				"total": total,
+				"today": todayCount,
+				"month": monthCount,
+				"users": users,
+			},
+			"byUser": byUser,
+		},
+	})
+}
+
+func (h *MiscHandler) GetTeamBloggerCharts(c *gin.Context) {
+	teamIDStr := c.Query("team_id")
+	if teamIDStr == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{}})
+		return
+	}
+
+	teamID, _ := strconv.Atoi(teamIDStr)
+
+	byUserMap := make(map[string]int)
+	rows, _ := h.DB.Query(`SELECT u.real_name FROM blogger b 
+		INNER JOIN users u ON b.user_name = u.username 
+		WHERE b.is_deleted = 0 AND u.team_id = ?`, teamID)
+	for rows.Next() {
+		var realName string
+		rows.Scan(&realName)
+		byUserMap[realName]++
+	}
+	rows.Close()
+
+	byMember := []map[string]interface{}{}
+	bloggerList := []map[string]interface{}{}
+
+	for name, count := range byUserMap {
+		var userBloggers []map[string]interface{}
+		bloggerRows, _ := h.DB.Query(`SELECT b.id, b.nickname, b.category, b.platform, b.status, b.create_time 
+			FROM blogger b 
+			INNER JOIN users u ON b.user_name = u.username 
+			WHERE b.is_deleted = 0 AND u.team_id = ? AND u.real_name = ? 
+			ORDER BY b.create_time DESC`, teamID, name)
+
+		for bloggerRows.Next() {
+			var id int
+			var nickname, category, platform, status, createTime string
+			bloggerRows.Scan(&id, &nickname, &category, &platform, &status, &createTime)
+			blogger := map[string]interface{}{
+				"id":          id,
+				"nickname":    nickname,
+				"category":    category,
+				"platform":    platform,
+				"status":      status,
+				"create_time": createTime,
+				"real_name":   name,
+			}
+			userBloggers = append(userBloggers, blogger)
+			bloggerList = append(bloggerList, blogger)
+		}
+		bloggerRows.Close()
+
+		byMember = append(byMember, map[string]interface{}{
+			"name":     name,
+			"count":    count,
+			"bloggers": userBloggers,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"data": gin.H{
+			"byMember":    byMember,
+			"bloggerList": bloggerList,
+		},
+	})
+}
+
+func (h *MiscHandler) ExportData(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	if role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+		return
+	}
+
+	exportType := c.DefaultQuery("type", "csv")
+	fieldsParam := c.DefaultQuery("fields", "")
+
+	availableFields := map[string]string{
+		"id":                "ID",
+		"nickname":          "昵称",
+		"category":          "分类",
+		"product":           "对接产品",
+		"contact":           "联系方式",
+		"wechat":            "微信",
+		"custom_contact":    "自定义联系方式",
+		"platform":          "平台",
+		"platform_account":  "平台账号",
+		"description":       "简介",
+		"tags":              "标签",
+		"blogger_tags":      "博主标签",
+		"user_name":         "用户名",
+		"real_name":         "真实姓名",
+		"status":            "状态",
+		"followup_count":    "跟进次数",
+		"cooperation_count": "合作次数",
+		"create_time":       "创建时间",
+		"update_time":       "更新时间",
+	}
+
+	var selectedFields []string
+	if fieldsParam == "" {
+		selectedFields = []string{"id", "nickname", "category", "product", "contact", "wechat", "platform", "status", "user_name", "create_time"}
+	} else {
+		for _, f := range strings.Split(fieldsParam, ",") {
+			f = strings.TrimSpace(f)
+			if _, ok := availableFields[f]; ok {
+				selectedFields = append(selectedFields, f)
+			}
+		}
+	}
+
+	if len(selectedFields) == 0 {
+		selectedFields = []string{"id", "nickname", "category", "product", "contact", "wechat", "platform", "status", "user_name", "create_time"}
+	}
+
+	headerNames := make([]string, len(selectedFields))
+	for i, f := range selectedFields {
+		headerNames[i] = availableFields[f]
+	}
+
+	bloggerRows, err := h.DB.Query(`
+		SELECT b.id, b.nickname, b.category, b.product, b.contact, b.wechat, b.custom_contact,
+			b.platform, b.platform_account, b.description, b.tags, b.avatar, b.user_name, b.real_name,
+			b.status, b.create_time, b.update_time,
+			(SELECT COUNT(*) FROM followup WHERE blogger_id = b.id AND is_deleted = 0) as followup_count,
+			(SELECT COUNT(*) FROM cooperation WHERE blogger_id = b.id AND is_deleted = 0) as cooperation_count
+		FROM blogger b WHERE b.is_deleted = 0 ORDER BY b.create_time DESC`)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "查询失败"})
+		return
+	}
+	defer bloggerRows.Close()
+
+	var bloggers []map[string]interface{}
+	bloggerMap := make(map[int]map[string]interface{})
+
+	for bloggerRows.Next() {
+		var id, followupCount, cooperationCount int
+		var nickname, category, product, contact, wechat, customContact sql.NullString
+		var platform, platformAccount, description, tags, avatar, userName, realName, status, createTime, updateTime sql.NullString
+
+		bloggerRows.Scan(&id, &nickname, &category, &product, &contact, &wechat, &customContact,
+			&platform, &platformAccount, &description, &tags, &avatar, &userName, &realName,
+			&status, &createTime, &updateTime, &followupCount, &cooperationCount)
+
+		blogMap := map[string]interface{}{
+			"id":                id,
+			"nickname":          nickname.String,
+			"category":          category.String,
+			"product":           product.String,
+			"contact":           contact.String,
+			"wechat":            wechat.String,
+			"custom_contact":    customContact.String,
+			"platform":          platform.String,
+			"platform_account":  platformAccount.String,
+			"description":       description.String,
+			"tags":              tags.String,
+			"avatar":            avatar.String,
+			"user_name":         userName.String,
+			"real_name":         realName.String,
+			"status":            status.String,
+			"followup_count":    followupCount,
+			"cooperation_count": cooperationCount,
+			"create_time":       createTime.String,
+			"update_time":       updateTime.String,
+		}
+
+		tagRows, _ := h.DB.Query(`
+			SELECT t.name FROM blogger_tags t
+			INNER JOIN blogger_tag_relations r ON t.id = r.tag_id
+			WHERE r.blogger_id = ?`, id)
+		var tagNames []string
+		for tagRows.Next() {
+			var tagName string
+			tagRows.Scan(&tagName)
+			tagNames = append(tagNames, tagName)
+		}
+		tagRows.Close()
+		blogMap["blogger_tags"] = strings.Join(tagNames, ", ")
+
+		bloggers = append(bloggers, blogMap)
+		bloggerMap[id] = blogMap
+	}
+
+	if exportType == "json" {
+		c.Header("Content-Type", "application/json")
+		c.Header("Content-Disposition", "attachment; filename=bloggers.json")
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": bloggers, "fields": selectedFields})
+	} else {
+		var csvContent bytes.Buffer
+		csvContent.WriteString("\xEF\xBB\xBF")
+		csvContent.WriteString(strings.Join(headerNames, ",") + "\n")
+
+		for _, blogger := range bloggers {
+			var row []string
+			for _, field := range selectedFields {
+				val := blogger[field]
+				if val == nil {
+					val = ""
+				}
+				row = append(row, escapeCSV(fmt.Sprintf("%v", val)))
+			}
+			csvContent.WriteString(strings.Join(row, ",") + "\n")
+		}
+
+		filename := "bloggers.csv"
+		c.Header("Content-Type", "text/csv; charset=utf-8")
+		c.Header("Content-Disposition", "attachment; filename="+filename)
+		c.String(http.StatusOK, csvContent.String())
+	}
+}
+
+func escapeCSV(s string) string {
+	if strings.ContainsAny(s, ",\"\\\n\r") {
+		s = strings.ReplaceAll(s, "\"", "\"\"")
+		return "\"" + s + "\""
+	}
+	return s
 }

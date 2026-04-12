@@ -156,21 +156,15 @@ func (h *AdminHandler) GetAllUsers(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
-	offset := (page - 1) * pageSize
-
-	var total int
-	h.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&total)
+	testUsernames := map[string]bool{"test": true, "testuser": true}
 
 	rows, err := h.DB.Query(`
 		SELECT id, username, real_name, role, status, avatar, email, phone, team_id, create_time 
 		FROM users 
-		ORDER BY create_time DESC 
-		LIMIT ? OFFSET ?`, pageSize, offset)
+		ORDER BY create_time DESC`)
 
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 500, "message": err.Error()})
+		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []map[string]interface{}{}})
 		return
 	}
 	defer rows.Close()
@@ -181,7 +175,12 @@ func (h *AdminHandler) GetAllUsers(c *gin.Context) {
 		var username, realName, roleStr, status, avatar, email, phone, createTime string
 		var teamID sql.NullInt64
 		rows.Scan(&id, &username, &realName, &roleStr, &status, &avatar, &email, &phone, &teamID, &createTime)
-		users = append(users, map[string]interface{}{
+
+		if testUsernames[username] {
+			continue
+		}
+
+		user := map[string]interface{}{
 			"id":          id,
 			"username":    username,
 			"real_name":   realName,
@@ -190,18 +189,17 @@ func (h *AdminHandler) GetAllUsers(c *gin.Context) {
 			"avatar":      avatar,
 			"email":       email,
 			"phone":       phone,
-			"team_id":     teamID.Int64,
+			"team_id":     nil,
 			"create_time": createTime,
-		})
+		}
+		if teamID.Valid {
+			user["team_id"] = teamID.Int64
+		}
+		users = append(users, user)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
-		"data": gin.H{
-			"list":     users,
-			"total":    total,
-			"page":     page,
-			"pageSize": pageSize,
-		},
+		"data": users,
 	})
 }

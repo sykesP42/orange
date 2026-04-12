@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,20 +23,44 @@ func NewUploadHandler(cfg *config.Config) *UploadHandler {
 	return &UploadHandler{Cfg: cfg}
 }
 
+var magicSignatures = map[string][]byte{
+	".jpg":  {0xFF, 0xD8, 0xFF},
+	".jpeg": {0xFF, 0xD8, 0xFF},
+	".png":  {0x89, 0x50, 0x4E, 0x47},
+	".gif":  {0x47, 0x49, 0x46},
+	".webp": {0x52, 0x49, 0x46, 0x46},
+	".pdf":  {0x25, 0x50, 0x44, 0x46},
+}
+
+var docSignatures = map[string][]byte{
+	".doc":  {0xD0, 0xCF, 0x11, 0xE0},
+	".docx": {0x50, 0x4B, 0x03, 0x04},
+	".xls":  {0xD0, 0xCF, 0x11, 0xE0},
+	".xlsx": {0x50, 0x4B, 0x03, 0x04},
+}
+
+func validateFileMagic(header []byte, ext string) bool {
+	if sig, ok := magicSignatures[ext]; ok {
+		return bytes.HasPrefix(header, sig)
+	}
+	if sig, ok := docSignatures[ext]; ok {
+		return bytes.HasPrefix(header, sig)
+	}
+	return true
+}
+
 func (h *UploadHandler) UploadFile(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No file uploaded"})
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "No file uploaded"})
 		return
 	}
 
-	// 检查文件大小
 	if file.Size > h.Cfg.MaxUploadSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File too large"})
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "File too large"})
 		return
 	}
 
-	// 检查文件类型
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	allowedExts := map[string]bool{
 		".jpg":  true,
@@ -51,48 +76,59 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 	}
 
 	if !allowedExts[ext] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed"})
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "File type not allowed"})
 		return
 	}
 
-	// 创建上传目录
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to open file"})
+		return
+	}
+	buf := make([]byte, 8)
+	n, _ := src.Read(buf)
+	src.Close()
+	if n > 0 && !validateFileMagic(buf[:n], ext) {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "File content does not match extension"})
+		return
+	}
+
 	uploadDir := h.Cfg.UploadPath
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to create upload directory"})
 		return
 	}
 
-	// 生成文件名
 	filename := fmt.Sprintf("%s_%d%s", uuid.New().String()[:8], time.Now().Unix(), ext)
 	filepath := filepath.Join(uploadDir, filename)
 
-	// 保存文件
 	if err := c.SaveUploadedFile(file, filepath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to save file"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"url":      "/uploads/" + filename,
-		"filename": filename,
-		"message":  "File uploaded successfully",
+		"code":    200,
+		"message": "File uploaded successfully",
+		"data": gin.H{
+			"url":      "/uploads/" + filename,
+			"filename": filename,
+		},
 	})
 }
 
 func (h *UploadHandler) UploadImage(c *gin.Context) {
 	file, err := c.FormFile("image")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No image uploaded"})
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "No image uploaded"})
 		return
 	}
 
-	// 检查文件大小 (图片限制5MB)
 	if file.Size > 5*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Image too large (max 5MB)"})
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "Image too large (max 5MB)"})
 		return
 	}
 
-	// 检查文件类型
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	allowedExts := map[string]bool{
 		".jpg":  true,
@@ -103,44 +139,57 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 	}
 
 	if !allowedExts[ext] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only image files are allowed"})
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "Only image files are allowed"})
 		return
 	}
 
-	// 创建上传目录
+	imgSrc, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to open file"})
+		return
+	}
+	buf := make([]byte, 8)
+	n, _ := imgSrc.Read(buf)
+	imgSrc.Close()
+	if n > 0 && !validateFileMagic(buf[:n], ext) {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "Image content does not match extension"})
+		return
+	}
+
 	uploadDir := filepath.Join(h.Cfg.UploadPath, "images")
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to create upload directory"})
 		return
 	}
 
-	// 生成文件名
 	filename := fmt.Sprintf("%s_%d%s", uuid.New().String()[:8], time.Now().Unix(), ext)
 	filePath := filepath.Join(uploadDir, filename)
 
-	// 保存文件
 	src, err := file.Open()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file"})
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to open file"})
 		return
 	}
 	defer src.Close()
 
 	dst, err := os.Create(filePath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create file"})
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to create file"})
 		return
 	}
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, src); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to save file"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"url":      "/uploads/images/" + filename,
-		"filename": filename,
-		"message":  "Image uploaded successfully",
+		"code":    200,
+		"message": "Image uploaded successfully",
+		"data": gin.H{
+			"url":      "/uploads/images/" + filename,
+			"filename": filename,
+		},
 	})
 }
