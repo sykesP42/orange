@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="add-page">
     <div class="page-header">
       <h1>录入博主</h1>
@@ -194,6 +194,22 @@
               @keydown.enter.prevent="addTag"
             />
             <button type="button" class="add-tag-btn" @click="addTag" :disabled="!tagInput.trim()">添加</button>
+            <button type="button" class="recommend-tags-btn" @click="recommendTags" :disabled="!canRecommend">
+              <span v-if="recommending">分析中...</span>
+              <span v-else>✨ 智能推荐</span>
+            </button>
+          </div>
+          <div v-if="recommendedTags.length > 0" class="recommended-tags">
+            <span class="recommended-label">推荐标签：</span>
+            <span
+              v-for="tag in recommendedTags"
+              :key="tag.tag_id"
+              class="recommended-tag"
+              :class="{ selected: form.tags.includes(tag.tag_name) }"
+              @click="toggleRecommendTag(tag.tag_name)"
+            >
+              {{ tag.tag_name }}
+            </span>
           </div>
         </div>
         <span class="hint">添加相关标签，便于搜索和归类</span>
@@ -243,11 +259,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
-import { categoryListAPI, productListAPI, bloggerAddAPI, platformListAPI } from '../api'
+import { categoryListAPI, productListAPI, bloggerAddAPI, platformListAPI, getRecommendTagsAPI } from '../api'
 import AvatarCropper from '../components/AvatarCropper.vue'
 
 const router = useRouter()
@@ -259,6 +275,8 @@ const categories = ref([])
 const products = ref([])
 const platforms = ref([])
 const tagInput = ref('')
+const recommendedTags = ref([])
+const recommending = ref(false)
 
 const form = reactive({
   nickname: '',
@@ -277,6 +295,41 @@ const form = reactive({
 const fileInput = ref(null)
 const cropDialogVisible = ref(false)
 const selectedImageFile = ref(null)
+
+const canRecommend = computed(() => {
+  return form.category || form.platform || form.description
+})
+
+const recommendTags = async () => {
+  recommending.value = true
+  try {
+    const params = {
+      category: form.category,
+      platform: form.platform,
+      product: form.product,
+      description: form.description
+    }
+    const res = await getRecommendTagsAPI(params)
+    if (res.code === 200 && res.data && res.data.recommendations) {
+      recommendedTags.value = res.data.recommendations
+      if (recommendedTags.value.length === 0) {
+        notification.info('暂未找到相关推荐标签，请手动添加')
+      }
+    }
+  } catch (error) {
+    console.error('推荐标签失败', error)
+  } finally {
+    recommending.value = false
+  }
+}
+
+const toggleRecommendTag = (tagName) => {
+  if (form.tags.includes(tagName)) {
+    form.tags = form.tags.filter(t => t !== tagName)
+  } else {
+    form.tags.push(tagName)
+  }
+}
 
 const triggerFileInput = () => {
   fileInput.value?.click()
@@ -491,7 +544,7 @@ onMounted(() => {
   padding: 6px 12px;
   background: transparent;
   border: 1px solid #ef4444;
-  color: #ef4444;
+  color: var(--danger);
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
@@ -499,7 +552,7 @@ onMounted(() => {
 }
 
 .remove-avatar:hover {
-  background: #ef4444;
+  background: var(--danger);
   color: white;
 }
 
@@ -512,7 +565,7 @@ onMounted(() => {
 }
 
 .required {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .input-wrapper {
@@ -667,7 +720,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #60a5fa;
+  color: var(--info);
 }
 
 .info-icon svg {
@@ -678,7 +731,7 @@ onMounted(() => {
 .info-content h3 {
   font-size: 14px;
   font-weight: 600;
-  color: #60a5fa;
+  color: var(--info);
   margin-bottom: 10px;
 }
 
@@ -700,7 +753,7 @@ onMounted(() => {
   content: '•';
   position: absolute;
   left: 0;
-  color: #60a5fa;
+  color: var(--info);
 }
 
 .tags-input-wrapper {
@@ -798,5 +851,66 @@ onMounted(() => {
   .btn-primary {
     width: 100%;
   }
+}
+
+.recommend-tags-btn {
+  padding: 0 16px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.recommend-tags-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
+
+.recommend-tags-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.recommended-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 8px;
+  border: 1px dashed rgba(245, 158, 11, 0.3);
+}
+
+.recommended-label {
+  width: 100%;
+  font-size: 12px;
+  color: var(--warning);
+  margin-bottom: 4px;
+}
+
+.recommended-tag {
+  display: inline-block;
+  padding: 6px 14px;
+  background: white;
+  border: 1px solid #f59e0b;
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--warning);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.recommended-tag:hover {
+  background: #fef3c7;
+}
+
+.recommended-tag.selected {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  border-color: #f59e0b;
 }
 </style>

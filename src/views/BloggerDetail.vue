@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="detail-page" v-if="blogger">
     <div class="page-header">
       <div class="header-left">
@@ -47,11 +47,18 @@
             </template>
           </div>
           <h1>{{ blogger.nickname }}</h1>
-          <div class="tags-display" v-if="blogger.tags && blogger.tags.length">
-            <span v-for="(tag, index) in blogger.tags" :key="index" class="tag">
-              {{ tag }}
+          <div class="tags-display" v-if="bloggerTags.length">
+            <span v-for="(tag, index) in bloggerTags" :key="index" class="tag" :style="{ backgroundColor: tag.color + '20', color: tag.color, borderColor: tag.color }">
+              {{ tag.name }}
             </span>
           </div>
+          <button v-if="canEdit" class="edit-tags-btn" @click="showTagDialog = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+              <line x1="7" y1="7" x2="7.01" y2="7"/>
+            </svg>
+            {{ bloggerTags.length ? '编辑标签' : '添加标签' }}
+          </button>
           <div class="meta-info">
             <span class="meta-item category-badge" :style="{ backgroundColor: getCategoryColor(blogger.category), color: getTextColorForBackground(getCategoryColor(blogger.category)) }">
               <span class="category-icon">{{ getCategoryIcon(blogger.category) }}</span>
@@ -187,9 +194,18 @@
             </button>
           </div>
           <div class="followup-form" v-if="canEdit">
+            <div class="form-toolbar">
+              <TemplateSelector v-model="selectedTemplate" />
+              <button v-if="selectedTemplate" class="clear-template-btn" @click="selectedTemplate = null; followupContent = ''" title="清除模板">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
             <textarea
               v-model="followupContent"
-              placeholder="添加跟进记录..."
+              :placeholder="selectedTemplate ? selectedTemplate.content : '添加跟进记录...'"
               rows="3"
             ></textarea>
             <div class="followup-actions">
@@ -452,7 +468,38 @@
           </button>
         </div>
       </div>
+
+      <div class="info-card similar-bloggers-card" v-if="similarBloggers.length > 0">
+        <h3>👥 相似博主</h3>
+        <p class="similar-hint">与当前博主有相似特征的博主推荐</p>
+        <div class="similar-bloggers-list">
+          <div
+            v-for="sb in similarBloggers"
+            :key="sb.id"
+            class="similar-blogger-item"
+            @click="goToBloggerDetail(sb.id)"
+          >
+            <div class="similar-avatar">
+              <img v-if="sb.avatar" :src="sb.avatar" :alt="sb.nickname" v-avatar />
+              <template v-else>{{ sb.nickname?.charAt(0) || '?' }}</template>
+            </div>
+            <div class="similar-info">
+              <span class="similar-name">{{ sb.nickname }}</span>
+              <span class="similar-meta">{{ sb.category }} · {{ sb.platform }}</span>
+              <div class="similar-tags" v-if="sb.tags && sb.tags.length">
+                <span v-for="(tag, i) in sb.tags.slice(0, 2)" :key="i" class="mini-tag">{{ tag }}</span>
+                <span v-if="sb.tags.length > 2" class="more-tag">+{{ sb.tags.length - 2 }}</span>
+              </div>
+            </div>
+            <div class="similar-score">
+              <span class="score-value">{{ Math.round(sb.similarity) }}</span>
+              <span class="score-label">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+
   </div>
 
   <!-- 编辑博主信息弹窗 -->
@@ -599,7 +646,7 @@
   </div>
 
   <div class="detail-page" v-else>
-    <div class="loading">加载中...</div>
+    <SkeletonLoader variant="detail" :is-dark="isDark" />
   </div>
 
   <AvatarCropper
@@ -607,16 +654,50 @@
     :image-file="selectedImageFile"
     @success="handleAvatarUploadSuccess"
   />
+
+  <div v-if="showTagDialog" class="tag-dialog-overlay" @click.self="showTagDialog = false">
+    <div class="tag-dialog">
+      <div class="tag-dialog-header">
+        <h3>🏷️ 管理博主标签</h3>
+        <button class="close-btn" @click="showTagDialog = false">✕</button>
+      </div>
+      <div class="tag-dialog-content">
+        <div class="tag-grid">
+          <label
+            v-for="tag in allTags"
+            :key="tag.id"
+            class="tag-item"
+            :class="{ selected: selectedTagIds.includes(tag.id) }"
+          >
+            <input
+              type="checkbox"
+              :value="tag.id"
+              v-model="selectedTagIds"
+            />
+            <span class="tag-color" :style="{ backgroundColor: tag.color }"></span>
+            <span class="tag-name">{{ tag.name }}</span>
+            <span v-if="tag.is_system" class="tag-system">系统</span>
+          </label>
+        </div>
+      </div>
+      <div class="tag-dialog-footer">
+        <button class="cancel-btn" @click="showTagDialog = false">取消</button>
+        <button class="save-btn" @click="saveBloggerTags">保存</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getBloggerDetail, followupAddAPI, followupListAPI, followupDeleteAPI, followupUpdateAPI, bloggerUpdateAPI, bloggerDeleteAPI, categoryListAPI, requestBloggerTransfer, cooperationListAPI, cooperationAddAPI, cooperationUpdateAPI, cooperationDeleteAPI, getBloggerStatusList, getTeamsAPI } from '../api'
+import { getBloggerDetail, followupAddAPI, followupListAPI, followupDeleteAPI, followupUpdateAPI, bloggerUpdateAPI, bloggerDeleteAPI, categoryListAPI, requestBloggerTransfer, cooperationListAPI, cooperationAddAPI, cooperationUpdateAPI, cooperationDeleteAPI, getBloggerStatusList, getTeamsAPI, getBloggerLogsAPI, getPublicUsersAPI, getTagsAPI, getBloggerTagsAPI, setBloggerTagsAPI, getSimilarBloggersAPI } from '../api'
 import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
 import { useConfirm } from '../utils/confirm'
 import AvatarCropper from '../components/AvatarCropper.vue'
+import TemplateSelector from '../components/TemplateSelector.vue'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -658,6 +739,7 @@ const cooperationForm = ref({
 })
 const cooperationStatuses = ['洽谈中', '进行中', '已完成', '已终止']
 const bloggerStatusList = ref([])
+const similarBloggers = ref([])
 
 let countdownTimer = null
 const countdownDays = ref(15)
@@ -715,6 +797,62 @@ watch(() => blogger.value, () => {
     calculateCountdown()
   }
 }, { immediate: true })
+
+const showTagDialog = ref(false)
+const allTags = ref([])
+const bloggerTags = ref([])
+const selectedTagIds = ref([])
+
+const selectedTemplate = ref(null)
+
+const loadTags = async () => {
+  try {
+    const res = await getTagsAPI()
+    if (res.code === 200) {
+      allTags.value = res.data || []
+    }
+  } catch (error) {
+    console.error('加载标签失败', error)
+  }
+}
+
+const loadBloggerTags = async (bloggerId) => {
+  try {
+    const res = await getBloggerTagsAPI(bloggerId)
+    if (res.code === 200) {
+      bloggerTags.value = res.data || []
+      selectedTagIds.value = bloggerTags.value.map(t => t.id)
+    }
+  } catch (error) {
+    console.error('加载博主标签失败', error)
+  }
+}
+
+const saveBloggerTags = async () => {
+  try {
+    await setBloggerTagsAPI(blogger.value.id, selectedTagIds.value)
+    bloggerTags.value = allTags.value.filter(t => selectedTagIds.value.includes(t.id))
+    showTagDialog.value = false
+  } catch (error) {
+    console.error('保存标签失败', error)
+  }
+}
+
+const loadSimilarBloggers = async (bloggerId) => {
+  try {
+    const res = await getSimilarBloggersAPI({ blogger_id: bloggerId, limit: 5 })
+    if (res.code === 200 && res.data && res.data.bloggers) {
+      similarBloggers.value = res.data.bloggers
+    }
+  } catch (error) {
+    console.error('加载相似博主失败', error)
+  }
+}
+
+const goToBloggerDetail = (id) => {
+  router.push(`/blogger/${id}`)
+  window.location.reload()
+}
 
 const cropDialogVisible = ref(false)
 const selectedImageFile = ref(null)
@@ -812,7 +950,14 @@ const canEdit = computed(() => {
 })
 
 const canDelete = computed(() => {
-  return userStore.role === 'admin' || blogger.value?.user_name === userStore.username
+  return userStore.role === 'admin' || blogger.value?.owner_username === userStore.username
+})
+
+const isDark = computed(() => {
+  if (typeof document !== 'undefined') {
+    return document.documentElement.classList.contains('dark')
+  }
+  return false
 })
 
 const bloggerTeamName = computed(() => {
@@ -834,6 +979,9 @@ const loadBlogger = async () => {
         loadFollowup(blogger.value.id)
         loadOperationLogs(blogger.value.nickname)
         loadCooperationHistory()
+        loadTags()
+        loadBloggerTags(blogger.value.id)
+        loadSimilarBloggers(blogger.value.id)
       }
     } else {
       console.error('加载博主信息失败', res.message)
@@ -930,17 +1078,9 @@ const loadFollowup = async (bloggerId) => {
 
 const loadOperationLogs = async (nickname) => {
   try {
-    const token = localStorage.getItem('token')
-    const res = await fetch(`/api/blogger/logs?nickname=${encodeURIComponent(nickname)}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (data.code === 200) {
-        operationLogs.value = data.data || []
-      }
+    const data = await getBloggerLogsAPI(nickname)
+    if (data.code === 200) {
+      operationLogs.value = data.data || []
     }
   } catch (error) {
     console.error('操作日志加载失败', error)
@@ -1028,12 +1168,9 @@ const deleteCooperation = async (id) => {
 
 const loadTeamMembers = async () => {
   try {
-    const res = await fetch('/api/users/public')
-    if (res.ok) {
-      const data = await res.json()
-      if (data.code === 200) {
-        teamMembers.value = data.data.filter(u => u.status === 'active' && u.id !== userStore.id)
-      }
+    const data = await getPublicUsersAPI()
+    if (data.code === 200) {
+      teamMembers.value = data.data.filter(u => u.status === 'active' && u.id !== userStore.id)
     }
   } catch (error) {
     console.error('加载团队成员失败', error)
@@ -1455,7 +1592,7 @@ const loadStatusList = async () => {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: #3b82f6;
+  background: var(--info);
   border: none;
   border-radius: 10px;
   color: white;
@@ -1478,7 +1615,7 @@ const loadStatusList = async () => {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: #ef4444;
+  background: var(--danger);
   border: none;
   border-radius: 10px;
   color: white;
@@ -1488,7 +1625,7 @@ const loadStatusList = async () => {
 }
 
 .delete-btn:hover {
-  background: #dc2626;
+  background: var(--danger);
 }
 
 .delete-btn svg {
@@ -2406,7 +2543,7 @@ html.dark .dialog-overlay {
 }
 
 .dialog {
-  background: #ffffff;
+  background: var(--bg-card);
   border-radius: 16px;
   width: 90%;
   max-width: 500px;
@@ -2419,14 +2556,14 @@ html.dark .dialog-overlay {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 2px solid #e5e7eb;
-  background: #f9fafb;
+  border-bottom: 2px solid var(--border-color);
+  background: var(--bg-card-hover);
 }
 
 .dialog-header h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -2436,17 +2573,17 @@ html.dark .dialog-overlay {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  color: #6b7280;
+  color: var(--text-tertiary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .dialog-header .close-btn:hover {
-  background: #ef4444;
-  border-color: #ef4444;
+  background: var(--danger);
+  border-color: var(--danger);
   color: white;
 }
 
@@ -2457,7 +2594,7 @@ html.dark .dialog-overlay {
 
 .dialog-body {
   padding: 24px;
-  background: #ffffff;
+  background: var(--bg-card);
 }
 
 .dialog-body .form-group {
@@ -2473,17 +2610,17 @@ html.dark .dialog-overlay {
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .dialog-body .form-select,
 .dialog-body .form-textarea {
   width: 100%;
   padding: 12px;
-  background: #f9fafb;
+  background: var(--bg-card-hover);
   border: 2px solid #e5e7eb;
   border-radius: 10px;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 14px;
   font-family: inherit;
   box-sizing: border-box;
@@ -2494,7 +2631,7 @@ html.dark .dialog-overlay {
   outline: none;
   border-color: #ff6b35;
   box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
-  background: #ffffff;
+  background: var(--bg-card);
 }
 
 .dialog-body .form-textarea {
@@ -2512,17 +2649,17 @@ html.dark .dialog-overlay {
 
 .dialog-actions .btn-secondary {
   padding: 10px 20px;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  color: #374151;
+  color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .dialog-actions .btn-secondary:hover {
-  background: #e5e7eb;
+  background: var(--border-color);
   border-color: #d1d5db;
 }
 
@@ -3009,7 +3146,7 @@ html.dark .dialog-overlay {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .dialog-header h2 {
@@ -3033,7 +3170,7 @@ html.dark .dialog-overlay {
 }
 
 .close-btn:hover {
-  background: #f3f4f6;
+  background: var(--bg-hover);
   color: #1a1a1a;
 }
 
@@ -3063,7 +3200,7 @@ html.dark .dialog-overlay {
 .form-label {
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .form-input,
@@ -3249,23 +3386,23 @@ html.dark .dialog-overlay {
   gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
+  background: var(--bg-card-hover);
 }
 
 .btn-secondary {
   padding: 10px 24px;
-  background: #f3f4f6;
+  background: var(--bg-hover);
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-secondary:hover {
-  background: #e5e7eb;
+  background: var(--border-color);
   border-color: #9ca3af;
 }
 
@@ -3330,36 +3467,53 @@ html.dark .dialog-overlay {
 }
 
 .status-tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 12px;
   border-radius: 16px;
   font-size: 12px;
   font-weight: 500;
+  transition: all 0.2s;
+}
+
+.status-tag::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.8;
 }
 
 .status-init {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  color: #1565c0;
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.15);
 }
 
 .status-talking {
-  background: #fff3e0;
-  color: #f57c00;
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  color: #e65100;
+  box-shadow: 0 2px 8px rgba(245, 124, 0, 0.15);
 }
 
 .status-cooperated {
-  background: #e8f5e9;
-  color: #388e3c;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  color: #2e7d32;
+  box-shadow: 0 2px 8px rgba(56, 142, 60, 0.15);
 }
 
 .status-rejected {
-  background: #ffebee;
-  color: #d32f2f;
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  color: #c62828;
+  box-shadow: 0 2px 8px rgba(211, 47, 47, 0.15);
 }
 
 .status-paused {
-  background: #f3e5f5;
-  color: #7b1fa2;
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+  color: #6a1b9a;
+  box-shadow: 0 2px 8px rgba(123, 31, 162, 0.15);
 }
 
 .crop-dialog {
@@ -3546,5 +3700,313 @@ html.dark .dialog-overlay {
   background: var(--primary);
   color: white;
   border-color: var(--primary);
+}
+
+.tag-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.tag-dialog {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+}
+
+.tag-dialog-header {
+  padding: 20px 24px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tag-dialog-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tag-dialog-header .close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: all 0.2s;
+}
+
+.tag-dialog-header .close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+.tag-dialog-content {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.tag-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.tag-item:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.tag-item.selected {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.tag-item input[type="checkbox"] {
+  display: none;
+}
+
+.tag-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tag-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.tag-item.selected .tag-name {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.tag-system {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--border-color);
+  color: var(--text-tertiary);
+  border-radius: 4px;
+}
+
+.tag-dialog-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.tag-dialog-footer .cancel-btn {
+  padding: 10px 20px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag-dialog-footer .cancel-btn:hover {
+  background: var(--border-color);
+}
+
+.tag-dialog-footer .save-btn {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag-dialog-footer .save-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+}
+
+.edit-tags-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 12px;
+}
+
+.edit-tags-btn:hover {
+  background: #eff6ff;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.edit-tags-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.similar-bloggers-card {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+}
+
+.similar-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 12px;
+}
+
+.similar-bloggers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.similar-blogger-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: var(--bg-card);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.similar-blogger-item:hover {
+  background: var(--bg-hover);
+  transform: translateX(4px);
+}
+
+.similar-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+.similar-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.similar-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.similar-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.similar-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.similar-tags {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.mini-tag {
+  padding: 2px 6px;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.more-tag {
+  padding: 2px 6px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.similar-score {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.score-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #667eea;
+}
+
+.score-label {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 </style>

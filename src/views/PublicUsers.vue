@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="public-users">
     <div class="page-header">
       <h1>团队成员</h1>
@@ -124,7 +124,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
 import { useConfirm } from '../utils/confirm'
-import { getPublicUsersAPI, getPendingUsersAPI, approveUserAPI, rejectUserAPI, deactivateUserAPI, deleteUserAPI } from '../api'
+import { getPublicUsersAPI, getPendingUsersAPI, approveUserAPI, rejectUserAPI, deactivateUserAPI, deleteUserAPI, setUserRoleAPI } from '../api'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -212,28 +212,17 @@ const handleSetRole = (user) => {
     return
   }
 
-  fetch('/api/admin/users/role', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    },
-    body: JSON.stringify({
-      id: user.id,
-      role: newRole
+  setUserRoleAPI(user.id, newRole)
+    .then(data => {
+      if (data.code === 200) {
+        success('权限设置成功')
+        loadUsers()
+      } else {
+        notifyError(data.message || '操作失败')
+      }
     })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.code === 200) {
-      success('权限设置成功')
-      loadUsers()
-    } else {
-      notifyError(data.message || '操作失败')
-    }
-  })
-  .catch(error => {
-    notifyError('操作失败')
+    .catch(error => {
+      notifyError('操作失败')
   })
 }
 
@@ -322,7 +311,7 @@ onMounted(() => {
   background: white;
   border: 2px solid #e5e7eb;
   border-radius: 8px;
-  color: #6b7280;
+  color: var(--text-tertiary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -330,13 +319,13 @@ onMounted(() => {
 }
 
 .tab-btn:hover {
-  border-color: #f97316;
-  color: #f97316;
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .tab-btn.active {
-  background: #f97316;
-  border-color: #f97316;
+  background: var(--primary);
+  border-color: var(--primary);
   color: white;
 }
 
@@ -413,7 +402,7 @@ onMounted(() => {
 
 .user-username {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-tertiary);
   margin-bottom: 8px;
 }
 
@@ -489,7 +478,7 @@ onMounted(() => {
 }
 
 .action-btn.role {
-  background: #3b82f6;
+  background: var(--info);
   color: white;
 }
 
@@ -498,12 +487,12 @@ onMounted(() => {
 }
 
 .action-btn.deactivate {
-  background: #ef4444;
+  background: var(--danger);
   color: white;
 }
 
 .action-btn.deactivate:hover {
-  background: #dc2626;
+  background: var(--danger);
 }
 
 .action-btn.delete {

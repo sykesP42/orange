@@ -118,9 +118,8 @@
           <p>您还未加入任何团队</p>
           <p class="empty-hint">请先在"团队"面板加入或创建团队</p>
         </div>
-        <div v-if="loading" class="loading">
-          <div class="spinner"></div>
-          <p>加载中...</p>
+        <div v-if="loading" class="skeleton-wrap">
+          <SkeletonLoader variant="table" :columns="4" :rows="5" :is-dark="document.documentElement.classList.contains('dark')" />
         </div>
         <div v-else>
           <div class="team-table" v-if="teams.length > 0">
@@ -404,9 +403,8 @@
           </button>
         </div>
         
-        <div v-if="loading" class="loading">
-          <div class="spinner"></div>
-          <p>加载中...</p>
+        <div v-if="loading" class="skeleton-wrap">
+          <SkeletonLoader variant="table" :columns="5" :rows="6" :is-dark="document.documentElement.classList.contains('dark')" />
         </div>
         <div v-else :class="compactView ? 'user-table' : 'user-cards'">
           <template v-if="compactView">
@@ -719,49 +717,197 @@
       <div v-if="activeTab === 'export'" class="tab-panel">
         <div class="panel-header">
           <h3>数据导出</h3>
+          <p class="panel-desc">自定义导出字段和格式，快速获取博主数据</p>
         </div>
-        <div class="export-cards">
-          <div class="export-card" @click="handleExport('xlsx')">
-            <div class="export-icon xlsx">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14,2 14,8 20,8"/>
-              </svg>
-            </div>
-            <div class="export-info">
-              <span class="export-name">Excel 格式</span>
-              <span class="export-desc">.xlsx 文件，适合数据分析</span>
+
+        <div class="export-section">
+          <div class="section-header">
+            <h4>📋 字段选择</h4>
+            <div class="quick-actions">
+              <button class="quick-btn" @click="selectAllFields">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="9,11 12,14 22,4"/>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+                全选
+              </button>
+              <button class="quick-btn" @click="selectBasicFields">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                </svg>
+                基础字段
+              </button>
+              <button class="quick-btn danger" @click="clearFields">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+                清除
+              </button>
             </div>
           </div>
-          <div class="export-card" @click="handleExport('csv')">
-            <div class="export-icon csv">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14,2 14,8 20,8"/>
-                <line x1="8" y1="13" x2="16" y2="13"/>
-                <line x1="8" y1="17" x2="16" y2="17"/>
-              </svg>
-            </div>
-            <div class="export-info">
-              <span class="export-name">CSV 格式</span>
-              <span class="export-desc">.csv 文件，通用数据格式</span>
-            </div>
+
+          <div class="field-grid">
+            <label
+              v-for="field in exportFields"
+              :key="field.key"
+              class="field-card"
+              :class="{ selected: field.selected }"
+            >
+              <input type="checkbox" v-model="field.selected" class="field-checkbox" />
+              <div class="field-checkmark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                  <polyline points="20,6 9,17 4,12"/>
+                </svg>
+              </div>
+              <span class="field-label">{{ field.label }}</span>
+              <span class="field-key">{{ field.key }}</span>
+            </label>
           </div>
-          <div class="export-card" @click="handleExport('json')">
-            <div class="export-icon json">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14,2 14,8 20,8"/>
-                <line x1="8" y1="13" x2="16" y2="13"/>
-                <line x1="8" y1="17" x2="16" y2="17"/>
-              </svg>
+        </div>
+
+        <div class="export-section">
+          <h4>📥 导出格式</h4>
+          <div class="format-grid">
+            <div
+              class="format-card"
+              :class="{ active: exportFormat === 'csv' }"
+              @click="exportFormat = 'csv'"
+            >
+              <div class="format-icon csv">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                  <line x1="8" y1="13" x2="16" y2="13"/>
+                  <line x1="8" y1="17" x2="16" y2="17"/>
+                  <line x1="8" y1="9" x2="10" y2="9"/>
+                </svg>
+              </div>
+              <div class="format-info">
+                <span class="format-name">CSV</span>
+                <span class="format-desc">Excel/表格通用</span>
+              </div>
+              <div class="format-badge">推荐</div>
             </div>
-            <div class="export-info">
-              <span class="export-name">JSON 格式</span>
-              <span class="export-desc">.json 文件，适合程序处理</span>
+
+            <div
+              class="format-card"
+              :class="{ active: exportFormat === 'json' }"
+              @click="exportFormat = 'json'"
+            >
+              <div class="format-icon json">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                  <path d="M8 13h2"/>
+                  <path d="M8 17h2"/>
+                  <path d="M14 13h2"/>
+                  <path d="M14 17h2"/>
+                </svg>
+              </div>
+              <div class="format-info">
+                <span class="format-name">JSON</span>
+                <span class="format-desc">程序开发使用</span>
+              </div>
+            </div>
+
+            <div
+              class="format-card"
+              :class="{ active: exportFormat === 'xlsx' }"
+              @click="exportFormat = 'xlsx'"
+            >
+              <div class="format-icon xlsx">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                  <path d="M8 11v5"/>
+                  <path d="M11 11h3v5"/>
+                  <path d="M11 11l2 2"/>
+                  <path d="M15 14l2-2"/>
+                </svg>
+              </div>
+              <div class="format-info">
+                <span class="format-name">Excel</span>
+                <span class="format-desc">.xlsx 格式</span>
+              </div>
             </div>
           </div>
         </div>
+
+        <div class="export-section">
+          <h4>📊 导出预览</h4>
+          <div class="export-preview-card">
+            <div class="preview-stats">
+              <div class="stat-item">
+                <span class="stat-value">{{ selectedFieldCount }}</span>
+                <span class="stat-label">已选字段</span>
+              </div>
+              <div class="stat-divider"></div>
+              <div class="stat-item">
+                <span class="stat-value">{{ bloggerCount }}</span>
+                <span class="stat-label">数据条数</span>
+              </div>
+              <div class="stat-divider"></div>
+              <div class="stat-item">
+                <span class="stat-value">{{ exportFormat.toUpperCase() }}</span>
+                <span class="stat-label">导出格式</span>
+              </div>
+            </div>
+            <div class="preview-fields">
+              <span class="preview-label">将导出：</span>
+              <div class="field-tags">
+                <span v-for="field in selectedFields" :key="field.key" class="field-tag">
+                  {{ field.label }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="export-actions">
+          <button class="export-btn primary" @click="handleExport(exportFormat)" :disabled="selectedFieldCount === 0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7,10 12,15 17,10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            确认导出
+          </button>
+          <button class="export-btn secondary" @click="resetExport">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+            </svg>
+            重置
+          </button>
+        </div>
+
+        <div v-if="exporting" class="export-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: exportProgress + '%' }"></div>
+          </div>
+          <span class="progress-text">{{ exportProgress }}% {{ exportProgress < 30 ? '准备中...' : exportProgress < 70 ? '获取数据...' : exportProgress < 90 ? '生成文件...' : '完成！' }}</span>
+        </div>
+
+        <div v-if="exportHistory.length > 0 && !exporting" class="export-history">
+          <h4 class="history-title">📋 导出历史</h4>
+          <div class="history-list">
+            <div v-for="(record, index) in exportHistory" :key="record.time" class="history-item">
+              <span class="history-format">{{ record.format }}</span>
+              <span class="history-fields">{{ record.fields }} 字段</span>
+              <span class="history-size">{{ record.size }}</span>
+              <span class="history-time">{{ formatExportTime(record.time) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="activeTab === 'import'" class="tab-panel">
+        <div class="panel-header">
+          <h3>批量导入博主</h3>
+        </div>
+        <ImportPanel @complete="handleImportComplete" />
       </div>
 
       <div v-if="activeTab === 'log'" class="tab-panel">
@@ -846,7 +992,9 @@ import { useRouter } from 'vue-router'
 import { useNotification } from '../stores/notification'
 import { useUserStore } from '../stores/user'
 import { useConfirm } from '../utils/confirm'
-import { categoryListAPI, productListAPI, categoryAddAPI, categoryUpdateAPI, categoryDeleteAPI, productAddAPI, productUpdateAPI, productDeleteAPI, exportAPI, getOperationLog, getPendingUsersAPI, approveUserAPI, rejectUserAPI, getTeamsAPI, deleteTeamAPI, updateTeamAPI, createTeamAPI } from '../api'
+import { categoryListAPI, productListAPI, categoryAddAPI, categoryUpdateAPI, categoryDeleteAPI, productAddAPI, productUpdateAPI, productDeleteAPI, exportAPI, getOperationLog, getPendingUsersAPI, approveUserAPI, rejectUserAPI, getTeamsAPI, deleteTeamAPI, updateTeamAPI, createTeamAPI, setAdminAPI, removeAdminAPI, setUserTeamAPI, getUsersListAPI, deleteLogAPI, clearLogsAPI, clearOldLogsAPI, batchApproveUsersAPI, batchRejectUsersAPI, getRegistrationModeAPI, setRegistrationModeAPI, deactivateUserAdminAPI, deleteUserAdminAPI, uploadTeamLogoAPI, uploadTeamBgAPI, createBackupAPI, getSnapshotsAPI, getSnapshotSettingsAPI, setSnapshotSettingsAPI, createSnapshotAPI, restoreSnapshotAPI, downloadSnapshotAPI, deleteSnapshotAPI, clearDataAPI, purgeDataAPI } from '../api'
+import ImportPanel from '../components/ImportPanel.vue'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const notification = useNotification()
 const userStore = useUserStore()
@@ -858,6 +1006,7 @@ const tabs = [
   { key: 'product', name: '产品管理', icon: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>' },
   { key: 'team', name: '团队管理', icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
   { key: 'users', name: '用户审核', icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
+  { key: 'import', name: '批量导入', icon: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/>' },
   { key: 'backup', name: '数据库管理', icon: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>' },
   { key: 'export', name: '数据导出', icon: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>' },
   { key: 'log', name: '操作日志', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' }
@@ -880,6 +1029,74 @@ const backupInterval = ref(604800000)
 const selectedUsers = ref([])
 const compactView = ref(false)
 const registrationMode = ref('normal')
+
+const bloggerCount = ref(0)
+const exportFields = ref([
+  { key: 'id', label: 'ID', selected: true },
+  { key: 'nickname', label: '昵称', selected: true },
+  { key: 'category', label: '分类', selected: true },
+  { key: 'platform', label: '平台', selected: true },
+  { key: 'contact', label: '联系方式', selected: false },
+  { key: 'wechat', label: '微信', selected: false },
+  { key: 'product', label: '对接产品', selected: false },
+  { key: 'status', label: '状态', selected: true },
+  { key: 'blogger_tags', label: '博主标签', selected: true },
+  { key: 'followup_count', label: '跟进次数', selected: true },
+  { key: 'cooperation_count', label: '合作次数', selected: true },
+  { key: 'user_name', label: '用户名', selected: false },
+  { key: 'real_name', label: '真实姓名', selected: false },
+  { key: 'description', label: '简介', selected: false },
+  { key: 'platform_account', label: '平台账号', selected: false },
+  { key: 'custom_contact', label: '自定义联系方式', selected: false },
+  { key: 'tags', label: '标签', selected: false },
+  { key: 'create_time', label: '创建时间', selected: true },
+  { key: 'update_time', label: '更新时间', selected: false },
+])
+
+const selectedFieldCount = computed(() => exportFields.value.filter(f => f.selected).length)
+const selectedFieldNames = computed(() => exportFields.value.filter(f => f.selected).map(f => f.label).join('、'))
+const exporting = ref(false)
+const exportProgress = ref(0)
+const exportHistory = ref(JSON.parse(localStorage.getItem('orange_export_history') || '[]'))
+
+const saveExportHistory = (record) => {
+  const history = [record, ...exportHistory.value].slice(0, 10)
+  exportHistory.value = history
+  localStorage.setItem('orange_export_history', JSON.stringify(history))
+}
+
+const formatExportTime = (timestamp) => {
+  const date = new Date(timestamp)
+  const now = Date.now()
+  const diff = now - timestamp
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前'
+  if (diff < 86400000) return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+const selectAllFields = () => {
+  exportFields.value.forEach(f => f.selected = true)
+}
+
+const exportFormat = ref('csv')
+
+const resetExport = () => {
+  exportFields.value.forEach(f => f.selected = false)
+  exportFormat.value = 'csv'
+}
+
+const selectedFields = computed(() => exportFields.value.filter(f => f.selected))
+
+const selectBasicFields = () => {
+  exportFields.value.forEach(f => {
+    f.selected = ['id', 'nickname', 'category', 'platform', 'status', 'create_time'].includes(f.key)
+  })
+}
+
+const clearFields = () => {
+  exportFields.value.forEach(f => f.selected = false)
+}
 
 const isAllSelected = computed(() => {
   if (allUsers.value.length === 0) return false
@@ -944,11 +1161,7 @@ const loadLogs = async () => {
 const handleDeleteLog = async (id) => {
   if (!await confirmDanger('确定删除该日志？')) return
   try {
-    const res = await fetch(`/api/admin/log/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await deleteLogAPI(id)
     if (data.code === 200) {
       notification.success('删除成功')
       loadLogs()
@@ -963,11 +1176,7 @@ const handleDeleteLog = async (id) => {
 const handleClearLogs = async () => {
   if (!await confirmDanger('警告：确定清空所有操作日志？此操作不可恢复！')) return
   try {
-    const res = await fetch('/api/admin/log/clear', {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await clearLogsAPI()
     if (data.code === 200) {
       notification.success('清空成功')
       loadLogs()
@@ -982,11 +1191,7 @@ const handleClearLogs = async () => {
 const handleDeleteOldLogs = async (count) => {
   if (!await confirmDanger(`确定删除最早的 ${count} 条日志？`)) return
   try {
-    const res = await fetch(`/api/admin/log/clear/${count}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await clearOldLogsAPI(count)
     if (data.code === 200) {
       notification.success(data.message)
       loadLogs()
@@ -1013,11 +1218,8 @@ const loadPendingUsers = async () => {
 const loadAllUsers = async () => {
   loading.value = true
   try {
-    const res = await fetch('/api/users/list', {
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
-    if (data.code === 200) allUsers.value = data.data || []
+    const res = await getUsersListAPI()
+    if (res.code === 200) allUsers.value = res.data || []
   } catch (error) {
     console.error('加载用户列表失败', error)
   } finally {
@@ -1069,6 +1271,7 @@ const handleApprove = async (id) => {
     if (res.code === 200) {
       notification.success('已批准该用户的注册申请')
       loadPendingUsers()
+      loadAllUsers()
       loadLogs()
     } else {
       notification.error(res.message || '操作失败')
@@ -1126,15 +1329,7 @@ const handleBatchApprove = async () => {
   if (!await confirm(`确定批量批准 ${pendingIds.length} 个用户的注册申请？`)) return
   
   try {
-    const res = await fetch('/api/admin/users/batch-approve', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify({ user_ids: pendingIds })
-    })
-    const data = await res.json()
+    const data = await batchApproveUsersAPI(pendingIds)
     if (data.code === 200) {
       notification.success(`已批量批准 ${pendingIds.length} 个用户`)
       selectedUsers.value = []
@@ -1162,15 +1357,7 @@ const handleBatchReject = async () => {
   if (!await confirmDanger(`确定批量拒绝 ${pendingIds.length} 个用户的注册申请？`)) return
   
   try {
-    const res = await fetch('/api/admin/users/batch-reject', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify({ user_ids: pendingIds })
-    })
-    const data = await res.json()
+    const data = await batchRejectUsersAPI(pendingIds)
     if (data.code === 200) {
       notification.success(`已批量拒绝 ${pendingIds.length} 个用户`)
       selectedUsers.value = []
@@ -1195,15 +1382,7 @@ const setRegistrationMode = async (mode) => {
   if (!await confirm(`确定切换到"${modeNames[mode]}"模式？`)) return
   
   try {
-    const res = await fetch('/api/admin/registration-mode', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify({ mode })
-    })
-    const data = await res.json()
+    const data = await setRegistrationModeAPI(mode)
     if (data.code === 200) {
       registrationMode.value = mode
       notification.success(`已切换到"${modeNames[mode]}"模式`)
@@ -1218,10 +1397,7 @@ const setRegistrationMode = async (mode) => {
 
 const loadRegistrationMode = async () => {
   try {
-    const res = await fetch('/api/admin/registration-mode', {
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await getRegistrationModeAPI()
     if (data.code === 200) {
       registrationMode.value = data.data?.mode || 'normal'
     }
@@ -1265,15 +1441,7 @@ const handleRemoveAdmin = async (id) => {
 const handleDeactivate = async (id) => {
   if (!await confirmDanger('确定注销该用户？')) return
   try {
-    const res = await fetch('/api/admin/users/deactivate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify({ id })
-    })
-    const data = await res.json()
+    const data = await deactivateUserAdminAPI(id)
     if (data.code === 200) {
       notification.success('已注销该用户')
       loadAllUsers()
@@ -1289,15 +1457,7 @@ const handleDeactivate = async (id) => {
 const handleDeleteUser = async (id) => {
   if (!await confirmDanger('确定永久删除该用户？此操作不可恢复！')) return
   try {
-    const res = await fetch('/api/admin/users/delete', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify({ id })
-    })
-    const data = await res.json()
+    const data = await deleteUserAdminAPI(id)
     if (data.code === 200) {
       notification.success('已永久删除该用户')
       loadAllUsers()
@@ -1367,15 +1527,7 @@ const handleLogoUpload = async (e) => {
   reader.onload = async () => {
     const base64Data = reader.result
     try {
-      const res = await fetch('/api/upload/team-logo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ image: base64Data })
-      })
-      const data = await res.json()
+      const data = await uploadTeamLogoAPI({ image: base64Data })
       if (data.code === 200) {
         formData.value.logo = data.data.url
         notification.success('Logo上传成功')
@@ -1398,15 +1550,7 @@ const handleBgUpload = async (e) => {
   reader.onload = async () => {
     const base64Data = reader.result
     try {
-      const res = await fetch('/api/upload/team-bg', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ image: base64Data })
-      })
-      const data = await res.json()
+      const data = await uploadTeamBgAPI({ image: base64Data })
       if (data.code === 200) {
         formData.value.bg_image = data.data.url
         notification.success('背景上传成功')
@@ -1621,23 +1765,45 @@ const deleteItem = async (type, item) => {
 }
 
 const handleExport = async (type) => {
+  exporting.value = true
+  exportProgress.value = 10
   try {
-    const res = await exportAPI(type)
+    const selectedFields = exportFields.value.filter(f => f.selected).map(f => f.key).join(',')
+    exportProgress.value = 30
+
+    const res = await exportAPI(type, selectedFields)
+    exportProgress.value = 70
+
     const blob = new Blob([res], {
-      type: type === 'json' ? 'application/json' :
-            type === 'csv' ? 'text/csv' :
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: type === 'json' ? 'application/json' : type === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv'
     })
+    const fileSize = (blob.size / 1024).toFixed(1)
+    exportProgress.value = 90
+
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `blogger_export_${Date.now()}.${type}`
+    const timestamp = new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '-')
+    a.download = `orange_export_${timestamp}.${type}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     window.URL.revokeObjectURL(url)
-    notification.success('导出成功！')
+
+    exportProgress.value = 100
+
+    saveExportHistory({
+      time: Date.now(),
+      format: type.toUpperCase(),
+      fields: selectedFieldCount.value,
+      size: `${fileSize}KB`
+    })
+
+    setTimeout(() => { exporting.value = false; exportProgress.value = 0 }, 600)
+    notification.success('导出成功！', `已导出 ${selectedFieldCount.value} 个字段 (${fileSize}KB)`)
   } catch (error) {
+    exporting.value = false
+    exportProgress.value = 0
     console.error('导出失败:', error)
     notification.error('导出失败，请重试')
   }
@@ -1651,21 +1817,10 @@ const triggerImport = () => {
 
 const handleBackup = async () => {
   try {
-    const res = await fetch('/api/backup', {
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await createBackupAPI({ name: 'backup_' + new Date().toISOString().slice(0, 10) })
     if (data.code === 200) {
-      const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `database_backup_${new Date().toISOString().slice(0, 10)}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
       notification.success('备份成功！')
+      loadSnapshots()
     } else {
       notification.error(data.message || '备份失败')
     }
@@ -1677,20 +1832,15 @@ const handleBackup = async () => {
 
 const loadSnapshots = async () => {
   try {
-    const res = await fetch('/api/snapshots', {
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await getSnapshotsAPI()
     if (data.code === 200) {
-      snapshots.value = data.data
+      snapshots.value = data.data || []
     }
     if (userStore.username === 'admin') {
-      const settingsRes = await fetch('/api/snapshots/settings', {
-        headers: { Authorization: `Bearer ${userStore.token}` }
-      })
-      const settingsData = await settingsRes.json()
+      const settingsData = await getSnapshotSettingsAPI()
       if (settingsData.code === 200) {
-        backupInterval.value = settingsData.data.interval
+        const intervalHours = settingsData.data.backup_interval || 24
+        backupInterval.value = intervalHours * 3600000
       }
     }
   } catch (error) {
@@ -1700,15 +1850,12 @@ const loadSnapshots = async () => {
 
 const handleUpdateBackupInterval = async () => {
   try {
-    const res = await fetch('/api/snapshots/settings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify({ interval: backupInterval.value })
+    const intervalHours = Math.round(backupInterval.value / 3600000)
+    const data = await setSnapshotSettingsAPI({
+      auto_backup: true,
+      backup_interval: intervalHours,
+      keep_backups: 7
     })
-    const data = await res.json()
     if (data.code === 200) {
       notification.success('自动快照间隔已更新')
     } else {
@@ -1722,15 +1869,7 @@ const handleUpdateBackupInterval = async () => {
 
 const handleCreateSnapshot = async () => {
   try {
-    const res = await fetch('/api/snapshots', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify({ name: 'manual' })
-    })
-    const data = await res.json()
+    const data = await createSnapshotAPI({ name: 'manual' })
     if (data.code === 200) {
       notification.success('快照创建成功！')
       loadSnapshots()
@@ -1746,11 +1885,7 @@ const handleCreateSnapshot = async () => {
 const handleRestoreSnapshot = async (snap) => {
   if (!await confirmDanger(`确定要还原快照 "${snap.name}" 吗？当前所有数据将被覆盖！`)) return
   try {
-    const res = await fetch(`/api/snapshots/${snap.filename}/restore`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await restoreSnapshotAPI(snap.filename)
     if (data.code === 200) {
       notification.success('还原成功！页面将刷新...')
       setTimeout(() => window.location.reload(), 1500)
@@ -1765,10 +1900,7 @@ const handleRestoreSnapshot = async (snap) => {
 
 const handleDownloadSnapshot = async (snap) => {
   try {
-    const res = await fetch('/api/snapshots/' + snap.filename, {
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const blob = await res.blob()
+    const blob = await downloadSnapshotAPI(snap.filename)
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -1787,11 +1919,7 @@ const handleDownloadSnapshot = async (snap) => {
 const handleDeleteSnapshot = async (snap) => {
   if (!await confirmDanger(`确定要删除快照 "${snap.name}" 吗？`)) return
   try {
-    const res = await fetch(`/api/snapshots/${snap.filename}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await deleteSnapshotAPI(snap.filename)
     if (data.code === 200) {
       notification.success('删除成功！')
       loadSnapshots()
@@ -1809,11 +1937,7 @@ const handleClearData = async () => {
   if (!await confirmDanger('再次确认：清空后所有数据将被永久删除！\n\n点击"确定"开始清空...')) return
 
   try {
-    const res = await fetch('/api/clear', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await clearDataAPI()
     if (data.code === 200) {
       notification.success('数据库已清空！')
       setTimeout(() => window.location.reload(), 1500)
@@ -1839,16 +1963,7 @@ const handleImport = async (event) => {
     const text = await file.text()
     const data = JSON.parse(text)
 
-    const res = await fetch('/api/backup', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify(data)
-    })
-
-    const result = await res.json()
+    const result = await createBackupAPI(data)
     if (result.code === 200) {
       notification.success('还原成功！页面将刷新...')
       setTimeout(() => {
@@ -1868,11 +1983,7 @@ const handleImport = async (event) => {
 const handlePurge = async () => {
   if (!await confirmDanger('警告：将永久删除30天前的所有已删除记录，此操作不可恢复！\n\n是否继续？')) return
   try {
-    const res = await fetch('/api/admin/purge', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await purgeDataAPI({ confirm: true })
     if (data.code === 200) {
       notification.success(data.message)
     } else {
@@ -1881,6 +1992,10 @@ const handlePurge = async () => {
   } catch (error) {
     notification.error('清理失败')
   }
+}
+
+const handleImportComplete = (result) => {
+  notification.success(`导入完成：成功 ${result.successCount} 条，失败 ${result.failCount} 条`)
 }
 
 const getLogIcon = (action) => {
@@ -2507,6 +2622,423 @@ const formatFileSize = (bytes) => {
   color: var(--text-muted);
 }
 
+.panel-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.quick-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.quick-btn.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.field-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.field-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.1);
+}
+
+.field-card.selected {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(234, 88, 12, 0.05) 100%);
+}
+
+.field-checkbox {
+  display: none;
+}
+
+.field-checkmark {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.field-card.selected .field-checkmark {
+  background: var(--primary);
+}
+
+.field-checkmark svg {
+  width: 12px;
+  height: 12px;
+  color: white;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.field-card.selected .field-checkmark svg {
+  opacity: 1;
+}
+
+.field-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.field-key {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.format-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.format-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 16px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.format-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.15);
+}
+
+.format-card.active {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, rgba(234, 88, 12, 0.08) 100%);
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.2);
+}
+
+.format-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.format-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.format-icon.csv {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+}
+
+.format-icon.json {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.format-icon.xlsx {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+}
+
+.format-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.format-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.format-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.format-badge {
+  position: absolute;
+  top: -8px;
+  right: 16px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.export-preview-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 20px;
+  margin-top: 16px;
+}
+
+.preview-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stat-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--border-color);
+}
+
+.preview-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.field-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.field-tag {
+  padding: 6px 12px;
+  background: rgba(249, 115, 22, 0.1);
+  color: var(--primary);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.export-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.export-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.export-btn.primary {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  border: none;
+  color: white;
+}
+
+.export-btn.primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.35);
+}
+
+.export-btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-btn.secondary {
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.export-btn.secondary:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.export-progress {
+  margin-top: 20px;
+  padding: 16px;
+  background: rgba(249, 115, 22, 0.04);
+  border: 1px solid rgba(249, 115, 22, 0.12);
+  border-radius: 12px;
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--border-color);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f97316, #fb923c);
+  border-radius: 3px;
+  transition: width 0.3s ease-out;
+}
+
+.progress-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.export-history {
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.history-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.history-format {
+  padding: 2px 8px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.history-fields { color: var(--text-secondary); }
+.history-size { color: var(--text-muted); margin-left: auto; }
+.history-time { color: var(--text-muted); font-size: 12px; }
+
 .log-list {
   display: flex;
   flex-direction: column;
@@ -2821,6 +3353,10 @@ const formatFileSize = (bytes) => {
 
 .loading p {
   color: var(--text-muted);
+}
+
+.skeleton-wrap {
+  padding: 16px;
 }
 
 .team-table {

@@ -341,36 +341,45 @@ const handleCloseClick = async () => {
 const applyCrop = async () => {
   const canvas = cropCanvas.value
   if (!canvas) return
-
+  
   uploading.value = true
-
-  const finalCanvas = document.createElement('canvas')
-  finalCanvas.width = 200
-  finalCanvas.height = 200
-  const finalCtx = finalCanvas.getContext('2d')
-  finalCtx.drawImage(canvas, 0, 0, 200, 200)
-
-  finalCanvas.toBlob(async (blob) => {
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        const uploadFunction = props.uploadAPI || uploadBloggerAvatarAPI
-        const res = await uploadFunction({ image: e.target.result })
-        if (res.code === 200) {
-          emit('success', res.data.url)
-          ElMessage.success('头像上传成功')
-          close()
-        } else {
-          ElMessage.error(res.message || '上传失败')
-        }
-      } catch (error) {
-        ElMessage.error('上传失败')
-      } finally {
-        uploading.value = false
-      }
+  
+  try {
+    const finalCanvas = document.createElement('canvas')
+    finalCanvas.width = 200
+    finalCanvas.height = 200
+    const finalCtx = finalCanvas.getContext('2d')
+    finalCtx.drawImage(canvas, 0, 0, 200, 200)
+    
+    const blob = await new Promise((resolve) => {
+      finalCanvas.toBlob(resolve, 'image/jpeg', 0.8)
+    })
+    
+    if (!blob) {
+      throw new Error('Failed to create blob')
     }
-    reader.readAsDataURL(blob)
-  }, 'image/jpeg', 0.9)
+    
+    const reader = new FileReader()
+    const base64Data = await new Promise((resolve) => {
+      reader.onload = (e) => resolve(e.target.result)
+      reader.readAsDataURL(blob)
+    })
+    
+    const uploadFunction = props.uploadAPI || uploadBloggerAvatarAPI
+    const res = await uploadFunction({ image: base64Data })
+    if (res.code === 200) {
+      emit('success', res.data.url)
+      ElMessage.success('头像上传成功')
+      close()
+    } else {
+      ElMessage.error(res.message || '上传失败')
+    }
+  } catch (error) {
+    console.error('Upload error:', error)
+    ElMessage.error('上传失败')
+  } finally {
+    uploading.value = false
+  }
 }
 
 const close = () => {

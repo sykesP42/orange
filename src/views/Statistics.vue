@@ -1,8 +1,29 @@
-<template>
+﻿<template>
   <div class="statistics">
     <div class="page-header">
-      <h1>数据统计</h1>
-      <p>实时数据一览</p>
+      <div class="header-left">
+        <h1>数据统计</h1>
+        <p>实时数据一览</p>
+      </div>
+      <div class="header-right">
+        <div class="time-range-selector">
+          <button
+            v-for="range in timeRanges"
+            :key="range.value"
+            class="range-btn"
+            :class="{ active: selectedTimeRange === range.value }"
+            @click="selectedTimeRange = range.value"
+          >
+            {{ range.label }}
+          </button>
+        </div>
+        <button class="layout-btn" @click="resetLayout" title="重置布局">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div class="view-toggle">
@@ -31,11 +52,40 @@
         </svg>
         团队对接
       </button>
+      <button class="toggle-btn" :class="{ active: viewMode === 'graph' }" @click="switchToGraphView">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="6" cy="6" r="3"/>
+          <circle cx="18" cy="6" r="3"/>
+          <circle cx="12" cy="18" r="3"/>
+          <line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/>
+          <line x1="7.5" y1="8.5" x2="10.5" y2="15.5"/>
+          <line x1="16.5" y1="8.5" x2="13.5" y2="15.5"/>
+        </svg>
+        关系图谱
+      </button>
     </div>
 
-    <div v-if="viewMode === 'blogger'">
-    <div class="stats-cards">
-      <div class="stat-card" style="--delay: 0">
+    <div v-if="viewMode === 'blogger'" class="dashboard-container">
+    <div class="stats-cards" :class="{ 'edit-mode': layoutEditMode }" @dragover.prevent @drop="handleStatsDrop">
+      <div
+        v-for="(card, index) in statsCardsOrder"
+        :key="card.id"
+        class="stat-card"
+        :class="{ 'dragging': dragFromStats === card.id, 'drag-over': dragOverStats === card.id }"
+        :style="{ '--delay': index }"
+        :draggable="layoutEditMode"
+        @dragstart="handleStatsDragStart($event, card.id, 'stats')"
+        @dragend="handleDragEnd"
+        @dragenter="handleDragEnter(card.id, 'stats')"
+        @dragleave="handleDragLeave('stats')"
+      >
+        <div v-if="layoutEditMode" class="drag-handle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>
+            <circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>
+          </svg>
+        </div>
+        <template v-if="card.id === 'total'">
         <div class="stat-icon total">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -54,9 +104,8 @@
             <polyline points="17,6 23,6 23,12"/>
           </svg>
         </div>
-      </div>
-
-      <div class="stat-card" style="--delay: 1">
+        </template>
+        <template v-else-if="card.id === 'userCount'">
         <div class="stat-icon users">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -67,9 +116,8 @@
           <span class="stat-value">{{ stats.userCount }}</span>
           <span class="stat-label">录入人数</span>
         </div>
-      </div>
-
-      <div class="stat-card" style="--delay: 2">
+        </template>
+        <template v-else-if="card.id === 'categoryCount'">
         <div class="stat-icon categories">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -79,9 +127,8 @@
           <span class="stat-value">{{ stats.categoryCount }}</span>
           <span class="stat-label">分类数量</span>
         </div>
-      </div>
-
-      <div class="stat-card" style="--delay: 3">
+        </template>
+        <template v-else-if="card.id === 'productCount'">
         <div class="stat-icon products">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -91,50 +138,82 @@
           <span class="stat-value">{{ stats.productCount }}</span>
           <span class="stat-label">产品数量</span>
         </div>
+        </template>
       </div>
     </div>
 
-    <div class="charts-grid">
-      <div class="chart-card">
+    <div class="charts-grid" :class="{ 'edit-mode': layoutEditMode }" @dragover.prevent @drop="handleChartsDrop">
+      <div
+        v-for="(chart, index) in chartsOrder"
+        :key="chart.id"
+        class="chart-card"
+        :class="{ 'dragging': dragFromCharts === chart.id, 'drag-over': dragOverCharts === chart.id }"
+        :draggable="layoutEditMode"
+        @dragstart="handleChartsDragStart($event, chart.id, 'charts')"
+        @dragend="handleDragEnd"
+        @dragenter="handleDragEnter(chart.id, 'charts')"
+        @dragleave="handleDragLeave('charts')"
+      >
+        <div v-if="layoutEditMode" class="drag-handle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>
+            <circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>
+          </svg>
+        </div>
+        <template v-if="chart.id === 'platform'">
         <div class="chart-header">
           <h3>平台分布</h3>
         </div>
         <div class="chart-body">
           <div ref="platformChart" class="chart"></div>
         </div>
-      </div>
-
-      <div class="chart-card">
+        </template>
+        <template v-else-if="chart.id === 'category'">
         <div class="chart-header">
           <h3>分类统计</h3>
         </div>
         <div class="chart-body">
           <div ref="categoryChart" class="chart"></div>
         </div>
-      </div>
-
-      <div class="chart-card">
+        </template>
+        <template v-else-if="chart.id === 'monthly'">
         <div class="chart-header">
           <h3>月度录入趋势</h3>
         </div>
         <div class="chart-body">
           <div ref="monthlyChart" class="chart"></div>
         </div>
-      </div>
-
-      <div class="chart-card">
+        </template>
+        <template v-else-if="chart.id === 'user'">
         <div class="chart-header">
           <h3>团队成员贡献排行</h3>
         </div>
         <div class="chart-body">
           <div ref="userChart" class="chart"></div>
         </div>
+        </template>
       </div>
     </div>
 
-    <div class="detail-section">
+    <div class="detail-section" :class="{ 'edit-mode': layoutEditMode }" @dragover.prevent @drop="handleDetailsDrop">
+      <div
+        class="section-header-wrapper"
+        :class="{ 'dragging': dragFromDetails === 'header', 'drag-over': dragOverDetails === 'header' }"
+        :draggable="layoutEditMode"
+        @dragstart="handleDetailsDragStart($event, 'header')"
+        @dragend="handleDragEnd"
+        @dragenter="handleDragEnter('header', 'details')"
+        @dragleave="handleDragLeave('details')"
+      >
+        <div v-if="layoutEditMode" class="drag-handle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>
+            <circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>
+          </svg>
+        </div>
       <div class="section-header">
         <h3>博主详情</h3>
+      </div>
       </div>
       <div class="blogger-details">
         <div
@@ -408,14 +487,19 @@
       </div>
     </div>
     </div>
+
+    <div v-if="viewMode === 'graph'" class="graph-container">
+      <RelationGraph :bloggers="graphBloggers" />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
+import RelationGraph from '../components/RelationGraph.vue'
 import { useNotification } from '../stores/notification'
-import { bloggerStatAPI, getBloggerCharts, getTeamsAPI, getTeamBloggerStatAPI, getTeamBloggerChartsAPI } from '../api'
+import { bloggerStatAPI, getBloggerChartsAPI, getTeamsAPI, getTeamBloggerStatAPI, getTeamBloggerChartsAPI, getUsersListAPI, bloggerListAPI } from '../api'
 import { useUserStore } from '../stores/user'
 
 const { success, error: notifyError, warning, info } = useNotification()
@@ -423,6 +507,13 @@ const { success, error: notifyError, warning, info } = useNotification()
 const userStore = useUserStore()
 
 const viewMode = ref('blogger')
+const selectedTimeRange = ref('week')
+const timeRanges = [
+  { label: '本周', value: 'week' },
+  { label: '本月', value: 'month' },
+  { label: '本季', value: 'quarter' },
+  { label: '本年', value: 'year' }
+]
 const stats = ref({
   total: 0,
   userCount: 0,
@@ -471,6 +562,134 @@ let teamBloggerCategoryChartInstance = null
 let teamBloggerStatusChartInstance = null
 let teamBloggerMemberChartInstance = null
 
+const layoutEditMode = ref(false)
+const dragFromStats = ref(null)
+const dragOverStats = ref(null)
+const dragFromCharts = ref(null)
+const dragOverCharts = ref(null)
+const dragFromDetails = ref(null)
+const dragOverDetails = ref(null)
+
+const defaultStatsOrder = [
+  { id: 'total', label: '博主总数' },
+  { id: 'userCount', label: '录入人数' },
+  { id: 'categoryCount', label: '分类数量' },
+  { id: 'productCount', label: '产品数量' }
+]
+
+const defaultChartsOrder = [
+  { id: 'platform', label: '平台分布' },
+  { id: 'category', label: '分类统计' },
+  { id: 'monthly', label: '月度录入趋势' },
+  { id: 'user', label: '团队成员贡献排行' }
+]
+
+const statsCardsOrder = ref([...defaultStatsOrder])
+const chartsOrder = ref([...defaultChartsOrder])
+
+const handleStatsDragStart = (e, id, type) => {
+  dragFromStats.value = id
+  e.dataTransfer.effectAllowed = 'move'
+}
+
+const handleChartsDragStart = (e, id, type) => {
+  dragFromCharts.value = id
+  e.dataTransfer.effectAllowed = 'move'
+}
+
+const handleDetailsDragStart = (e, id) => {
+  dragFromDetails.value = id
+  e.dataTransfer.effectAllowed = 'move'
+}
+
+const handleDragEnter = (id, type) => {
+  if (type === 'stats') dragOverStats.value = id
+  else if (type === 'charts') dragOverCharts.value = id
+  else if (type === 'details') dragOverDetails.value = id
+}
+
+const handleDragLeave = (type) => {
+  if (type === 'stats') dragOverStats.value = null
+  else if (type === 'charts') dragOverCharts.value = null
+  else if (type === 'details') dragOverDetails.value = null
+}
+
+const handleDragEnd = () => {
+  dragFromStats.value = null
+  dragOverStats.value = null
+  dragFromCharts.value = null
+  dragOverCharts.value = null
+  dragFromDetails.value = null
+  dragOverDetails.value = null
+}
+
+const handleStatsDrop = (e) => {
+  e.preventDefault()
+  if (!dragFromStats.value || !dragOverStats.value) return
+  const fromIndex = statsCardsOrder.value.findIndex(c => c.id === dragFromStats.value)
+  const toIndex = statsCardsOrder.value.findIndex(c => c.id === dragOverStats.value)
+  if (fromIndex !== -1 && toIndex !== -1) {
+    const item = statsCardsOrder.value.splice(fromIndex, 1)[0]
+    statsCardsOrder.value.splice(toIndex, 0, item)
+    saveLayoutPreference()
+  }
+  handleDragEnd()
+}
+
+const handleChartsDrop = (e) => {
+  e.preventDefault()
+  if (!dragFromCharts.value || !dragOverCharts.value) return
+  const fromIndex = chartsOrder.value.findIndex(c => c.id === dragFromCharts.value)
+  const toIndex = chartsOrder.value.findIndex(c => c.id === dragOverCharts.value)
+  if (fromIndex !== -1 && toIndex !== -1) {
+    const item = chartsOrder.value.splice(fromIndex, 1)[0]
+    chartsOrder.value.splice(toIndex, 0, item)
+    saveLayoutPreference()
+  }
+  handleDragEnd()
+}
+
+const handleDetailsDrop = (e) => {
+  e.preventDefault()
+  handleDragEnd()
+}
+
+const resetLayout = () => {
+  statsCardsOrder.value = [...defaultStatsOrder]
+  chartsOrder.value = [...defaultChartsOrder]
+  localStorage.removeItem('dashboard_layout')
+  success('布局已重置')
+}
+
+const saveLayoutPreference = () => {
+  const layout = {
+    statsCards: statsCardsOrder.value.map(c => c.id),
+    charts: chartsOrder.value.map(c => c.id)
+  }
+  localStorage.setItem('dashboard_layout', JSON.stringify(layout))
+}
+
+const loadLayoutPreference = () => {
+  try {
+    const saved = localStorage.getItem('dashboard_layout')
+    if (saved) {
+      const layout = JSON.parse(saved)
+      if (layout.statsCards) {
+        statsCardsOrder.value = layout.statsCards
+          .map(id => defaultStatsOrder.find(c => c.id === id) || { id, label: id })
+          .filter(c => c.id);
+      }
+      if (layout.charts) {
+        chartsOrder.value = layout.charts
+          .map(id => defaultChartsOrder.find(c => c.id === id) || { id, label: id })
+          .filter(c => c.id);
+      }
+    }
+  } catch (e) {
+    console.error('加载布局失败', e);
+  }
+};
+
 const loadStats = async () => {
   try {
     const res = await bloggerStatAPI()
@@ -492,7 +711,7 @@ const loadStats = async () => {
 
 const loadCharts = async () => {
   try {
-    const res = await getBloggerCharts()
+    const res = await getBloggerChartsAPI()
     if (res.code === 200) {
       const data = res.data
 
@@ -508,9 +727,7 @@ const loadCharts = async () => {
 
 const loadTeamStats = async () => {
   try {
-    const [teamsRes, usersRes] = await Promise.all([getTeamsAPI(), fetch('/api/users/list', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    }).then(r => r.json())])
+    const [teamsRes, usersRes] = await Promise.all([getTeamsAPI(), getUsersListAPI()])
 
     if (teamsRes.code === 200) {
       const teams = teamsRes.data || []
@@ -550,6 +767,22 @@ const switchToTeamView = () => {
     teamDistChartInstance?.resize()
     teamCompareChartInstance?.resize()
   }, 100)
+}
+
+const graphBloggers = ref([])
+
+const switchToGraphView = async () => {
+  viewMode.value = 'graph'
+  if (graphBloggers.value.length === 0) {
+    try {
+      const res = await bloggerListAPI({ page: 1, pageSize: 200 })
+      if (res.code === 200) {
+        graphBloggers.value = res.data?.bloggers || res.data || []
+      }
+    } catch (e) {
+      graphBloggers.value = []
+    }
+  }
 }
 
 const switchToTeamBloggerView = async () => {
@@ -597,18 +830,14 @@ const loadTeamBloggerStats = async () => {
 
       const teamMembers = data.byMember || []
       let memberUsernames = []
-      const usersRes = await fetch('/api/users/list', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      }).then(r => r.json())
+      const usersRes = await getUsersListAPI()
 
       if (usersRes.code === 200) {
         const teamUsers = usersRes.data?.filter(u => u.team_id === teamId) || []
         memberUsernames = teamUsers.map(u => u.username)
       }
 
-      const bloggersRes = await fetch('/api/blogger/list?pageSize=100', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      }).then(r => r.json())
+      const bloggersRes = await bloggerListAPI({ pageSize: 100 })
 
       if (bloggersRes.code === 200) {
         teamBloggerList.value = bloggersRes.data?.list?.filter(b => memberUsernames.includes(b.user_name)) || []
@@ -931,10 +1160,32 @@ const initTeamCompareChart = (data) => {
 }
 
 const initPlatformChart = (data) => {
-  if (!platformChart.value) return
+  if (!platformChart.value) {
+    console.warn('平台图表容器不存在', platformChart.value);
+    return
+  }
   
-  platformChartInstance = echarts.init(platformChart.value)
-  
+  console.log('平台图表容器类型:', typeof platformChart.value);
+  console.log('平台图表容器 instanceof HTMLElement:', platformChart.value instanceof HTMLElement);
+  console.log('平台图表容器 tagName:', platformChart.value.tagName);
+  console.log('平台图表容器 has getContext:', typeof platformChart.value.getContext);
+
+  if (!platformChart.value instanceof HTMLElement) {
+    console.warn('平台图表容器不是 HTMLElement', platformChart.value);
+    return
+  }
+
+  if (platformChartInstance) {
+    platformChartInstance.dispose()
+  }
+
+  try {
+    platformChartInstance = echarts.init(platformChart.value)
+  } catch (e) {
+    console.error('初始化平台图表失败', e)
+    return
+  }
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -969,18 +1220,27 @@ const initPlatformChart = (data) => {
       labelLine: {
         show: false
       },
-      data: data
+      data: data || []
     }]
   }
-  
+
   platformChartInstance.setOption(option)
 }
 
 const initCategoryChart = (data) => {
-  if (!categoryChart.value) return
-  
-  categoryChartInstance = echarts.init(categoryChart.value)
-  
+  if (!categoryChart.value || !categoryChart.value instanceof HTMLElement) return
+
+  if (categoryChartInstance) {
+    categoryChartInstance.dispose()
+  }
+
+  try {
+    categoryChartInstance = echarts.init(categoryChart.value)
+  } catch (e) {
+    console.error('初始化分类图表失败', e)
+    return
+  }
+
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -1030,10 +1290,19 @@ const initCategoryChart = (data) => {
 }
 
 const initMonthlyChart = (data) => {
-  if (!monthlyChart.value) return
-  
-  monthlyChartInstance = echarts.init(monthlyChart.value)
-  
+  if (!monthlyChart.value || !monthlyChart.value instanceof HTMLElement) return
+
+  if (monthlyChartInstance) {
+    monthlyChartInstance.dispose()
+  }
+
+  try {
+    monthlyChartInstance = echarts.init(monthlyChart.value)
+  } catch (e) {
+    console.error('初始化月度图表失败', e)
+    return
+  }
+
   const option = {
     tooltip: {
       trigger: 'axis'
@@ -1084,10 +1353,19 @@ const initMonthlyChart = (data) => {
 }
 
 const initUserChart = (data) => {
-  if (!userChart.value) return
-  
-  userChartInstance = echarts.init(userChart.value)
-  
+  if (!userChart.value || !userChart.value instanceof HTMLElement) return
+
+  if (userChartInstance) {
+    userChartInstance.dispose()
+  }
+
+  try {
+    userChartInstance = echarts.init(userChart.value)
+  } catch (e) {
+    console.error('初始化用户图表失败', e)
+    return
+  }
+
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -1147,6 +1425,7 @@ const formatDate = (date) => {
 }
 
 onMounted(() => {
+  loadLayoutPreference()
   loadStats()
   loadCharts()
   window.addEventListener('resize', handleResize)
@@ -1188,7 +1467,14 @@ onUnmounted(() => {
 }
 
 .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 32px;
+}
+
+.header-left {
+  flex: 1;
 }
 
 .page-header h1 {
@@ -1201,6 +1487,43 @@ onUnmounted(() => {
 .page-header p {
   font-size: 14px;
   color: var(--text-muted);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.time-range-selector {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 2px;
+}
+
+.range-btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.range-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.range-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 500;
 }
 
 .view-toggle {
@@ -1235,13 +1558,13 @@ onUnmounted(() => {
 }
 
 .toggle-btn:hover:not(:disabled) {
-  border-color: #3b82f6;
-  color: #3b82f6;
+  border-color: var(--info);
+  color: var(--info);
 }
 
 .toggle-btn.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
+  background: var(--info);
+  border-color: var(--info);
   color: white;
 }
 
@@ -1252,13 +1575,13 @@ onUnmounted(() => {
 }
 
 .dark .toggle-btn:hover:not(:disabled) {
-  border-color: #3b82f6;
-  color: #3b82f6;
+  border-color: var(--info);
+  color: var(--info);
 }
 
 .dark .toggle-btn.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
+  background: var(--info);
+  border-color: var(--info);
   color: white;
 }
 
@@ -1345,7 +1668,7 @@ onUnmounted(() => {
 
 .stat-icon.users {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1));
-  color: #60a5fa;
+  color: var(--info);
 }
 
 .stat-icon.categories {
@@ -1672,5 +1995,125 @@ onUnmounted(() => {
   .stat-value {
     font-size: 28px;
   }
+}
+
+.layout-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.layout-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+}
+
+.layout-btn svg {
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+}
+
+.stats-cards.edit-mode,
+.charts-grid.edit-mode,
+.detail-section.edit-mode {
+  cursor: default;
+}
+
+.stats-cards .stat-card,
+.charts-grid .chart-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stats-cards.edit-mode .stat-card,
+.charts-grid.edit-mode .chart-card {
+  cursor: grab;
+  position: relative;
+}
+
+.stats-cards.edit-mode .stat-card:active,
+.charts-grid.edit-mode .chart-card:active {
+  cursor: grabbing;
+}
+
+.stat-card.dragging,
+.chart-card.dragging {
+  opacity: 0.5;
+  transform: scale(1.02);
+}
+
+.stat-card.drag-over,
+.chart-card.drag-over {
+  border: 2px dashed var(--primary);
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.drag-handle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 4px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.stats-cards.edit-mode .stat-card:hover .drag-handle,
+.charts-grid.edit-mode .chart-card:hover .drag-handle,
+.detail-section.edit-mode .section-header-wrapper:hover .drag-handle {
+  opacity: 1;
+}
+
+.drag-handle svg {
+  width: 16px;
+  height: 16px;
+  color: var(--primary);
+}
+
+.section-header-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin: -8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.detail-section.edit-mode .section-header-wrapper:hover {
+  background: var(--bg-hover);
+}
+
+.detail-section.edit-mode .section-header-wrapper.dragging {
+  opacity: 0.5;
+}
+
+.detail-section.edit-mode .section-header-wrapper.drag-over {
+  border: 2px dashed var(--primary);
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.graph-container {
+  padding: 0;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

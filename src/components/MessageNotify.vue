@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Teleport to="body">
     <TransitionGroup name="notification" tag="div" class="notification-container">
       <div 
@@ -60,19 +60,19 @@ const { notifications, removeNotification } = useNotification()
 }
 
 .notification-item.success {
-  border-color: #22c55e;
+  border-color: var(--success);
 }
 
 .notification-item.error {
-  border-color: #ef4444;
+  border-color: var(--danger);
 }
 
 .notification-item.warning {
-  border-color: #f97316;
+  border-color: var(--primary);
 }
 
 .notification-item.info {
-  border-color: #3b82f6;
+  border-color: var(--info);
 }
 
 .notification-icon {
@@ -89,22 +89,22 @@ const { notifications, removeNotification } = useNotification()
 
 .notification-item.success .notification-icon {
   background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  color: var(--success);
 }
 
 .notification-item.error .notification-icon {
   background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .notification-item.warning .notification-icon {
   background: rgba(249, 115, 22, 0.15);
-  color: #f97316;
+  color: var(--primary);
 }
 
 .notification-item.info .notification-icon {
   background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  color: var(--info);
 }
 
 .notification-content {

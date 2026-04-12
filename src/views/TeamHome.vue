@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="team-home-page" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <div v-if="loading" class="loading-state">
       <div class="loading-spinner"></div>
@@ -172,14 +172,14 @@
             </a>
             <a class="nav-item" :class="{ active: activeTab === 'announcement' }" @click="showAnnouncementDialog">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/>
+1                <path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/>
               </svg>
               <span v-if="!sidebarCollapsed">发布公告</span>
             </a>
             <a class="nav-item" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                <path d="M12 1v6m0 6v6m-5.5-13.5l4.24 4.24m4.52 4.52L20 21M1 12h6m6 0h6M6.34 17.66l4.24-4.24m4.52-4.52L20 3"/>
               </svg>
               <span v-if="!sidebarCollapsed">管理设置</span>
             </a>
@@ -325,7 +325,8 @@
               </div>
               <div class="blogger-grid">
                 <div v-for="(blogger, index) in teamBloggerList.slice(0, 12)" :key="blogger.id"
-                     class="blogger-mini-card reveal" :style="{ '--delay': 0.3 + index * 0.03 }">
+                     class="blogger-mini-card reveal" :style="{ '--delay': 0.3 + index * 0.03 }"
+                     @click="goToBloggerDetail(blogger.id)">
                   <div class="mini-avatar" :style="{ backgroundColor: getCategoryColor(blogger.category) }">
                     <img v-if="blogger.avatar" :src="blogger.avatar" :alt="blogger.nickname" v-avatar />
                     <span v-else>{{ blogger.nickname?.charAt(0) || '?' }}</span>
@@ -473,7 +474,7 @@
                 <h3>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    <path d="M12 1v6m0 6v6m-5.5-13.5l4.24 4.24m4.52 4.52L20 21M1 12h6m6 0h6M6.34 17.66l4.24-4.24m4.52-4.52L20 3"/>
                   </svg>
                   管理设置
                 </h3>
@@ -539,7 +540,7 @@
                 <span class="count-badge">{{ teamBloggerList.length }}</span>
               </div>
               <div class="blogger-full-grid">
-                <div v-for="blogger in teamBloggerList" :key="blogger.id" class="blogger-card">
+                <div v-for="blogger in teamBloggerList" :key="blogger.id" class="blogger-card" @click="goToBloggerDetail(blogger.id)">
                   <div class="blogger-avatar" :style="{ backgroundColor: getCategoryColor(blogger.category) }">
                     <img v-if="blogger.avatar" :src="blogger.avatar" :alt="blogger.nickname" v-avatar />
                     <span v-else>{{ blogger.nickname?.charAt(0) || '?' }}</span>
@@ -601,10 +602,10 @@
                 </div>
               </div>
               <div class="posts-list">
-                <div v-for="(post, index) in posts" :key="post.id"
+                <div v-for="(post, index) in posts" :key="post?.id || index"
                      class="post-item reveal" :style="{ '--delay': index * 0.05 }"
-                     @click="viewPostDetail(post)">
-                  <div class="post-badges" v-if="post.is_pinned || post.is_featured">
+                     @click="post && viewPostDetail(post)">
+                  <div class="post-badges" v-if="post && (post.is_pinned || post.is_featured)">
                     <span v-if="post.is_pinned" class="post-badge pinned">
                       <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
                         <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
@@ -618,40 +619,40 @@
                       精华
                     </span>
                   </div>
-                  <div class="post-header">
+                  <div class="post-header" v-if="post">
                     <div class="post-author-avatar">
-                      <img v-if="post.author_avatar" :src="post.author_avatar" :alt="post.author_name" v-avatar />
-                      <span v-else>{{ post.author_name?.charAt(0) || '?' }}</span>
+                      <img v-if="post.author_avatar" :src="post.author_avatar" :alt="post.author_name || '作者'" v-avatar />
+                      <span v-else>{{ post.author_name?.charAt?.(0) || post.author_username?.charAt?.(0) || '?' }}</span>
                     </div>
                     <div class="post-author-info">
-                      <span class="post-author-name">{{ post.author_name }}</span>
-                      <span class="post-category" :style="{ backgroundColor: getCategoryColor(post.category) }">{{ post.category }}</span>
+                      <span class="post-author-name">{{ post.author_name || post.author_username || '匿名用户' }}</span>
+                      <span class="post-category" :style="{ backgroundColor: getCategoryColor(post.category) }">{{ post.category || '综合' }}</span>
                     </div>
-                    <span class="post-time">{{ formatRelativeTime(post.create_time) }}</span>
+                    <span class="post-time">{{ post.create_time ? formatRelativeTime(post.create_time) : '' }}</span>
                   </div>
-                  <h4 class="post-title">{{ post.title }}</h4>
-                  <p class="post-excerpt">{{ post.content.substring(0, 120) }}{{ post.content.length > 120 ? '...' : '' }}</p>
-                  <div class="post-footer">
-                    <button class="post-action" :class="{ active: postLikedMap[post.id] }" @click="likePost(post, $event)">
+                  <h4 class="post-title" v-if="post">{{ post.title || '无标题' }}</h4>
+                  <p class="post-excerpt" v-if="post">{{ (post.content || '').substring?.(0, 120) }}{{ (post.content?.length || 0) > 120 ? '...' : '' }}</p>
+                  <div class="post-footer" v-if="post">
+                    <button class="post-action" :class="{ active: postLikedMap[post.id] }" @click.stop="likePost(post, $event)">
                       <svg viewBox="0 0 24 24" :fill="postLikedMap[post.id] ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                       </svg>
-                      {{ post.like_count || 0 }}
+                      {{ post.like_count ?? 0 }}
                     </button>
                     <span class="post-stat">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                       </svg>
-                      {{ post.comment_count || 0 }}
+                      {{ post.comment_count ?? 0 }}
                     </span>
                     <span class="post-stat">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                         <circle cx="12" cy="12" r="3"/>
                       </svg>
-                      {{ post.view_count || 0 }}
+                      {{ post.view_count ?? 0 }}
                     </span>
-                    <button class="post-action" :class="{ active: postCollectedMap[post.id] }" @click="collectPost(post, $event)">
+                    <button class="post-action" :class="{ active: postCollectedMap[post.id] }" @click.stop="collectPost(post, $event)">
                       <svg viewBox="0 0 24 24" :fill="postCollectedMap[post.id] ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
                         <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
                       </svg>
@@ -1152,7 +1153,7 @@
       <a class="mobile-nav-item" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'" v-if="isTeamAdmin">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/>
         </svg>
         <span>管理</span>
       </a>
@@ -1243,7 +1244,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
 import { useConfirm } from '../utils/confirm'
-import { getTeamsAPI, updateTeamAPI, setUserTeamAPI, getPublicUsersAPI, updateMyTeamAPI, getTeamBloggerStatAPI, getTeamBloggerChartsAPI, uploadTeamLogoAPI, uploadTeamBgAPI, getTeamPostsAPI, createTeamPostAPI, getTeamPostDetailAPI, deleteTeamPostAPI, createTeamPostCommentAPI, likeTeamPostAPI, getTeamPostLikeStatusAPI, pinTeamPostAPI, featureTeamPostAPI, searchTeamPostsAPI, collectTeamPostAPI, getTeamPostCollectStatusAPI, getTeamPostsCollectedAPI, setTeamAdminAPI, getTeamMessagesAPI, sendTeamMessageAPI, markMessageReadAPI, deleteTeamMessageAPI, getTeamOperationLogsAPI, removeTeamMemberAPI } from '../api'
+import { getTeamsAPI, updateTeamAPI, setUserTeamAPI, getPublicUsersAPI, updateMyTeamAPI, getTeamBloggerStatAPI, getTeamBloggerChartsAPI, uploadTeamLogoAPI, uploadTeamBgAPI, getTeamPostsAPI, createTeamPostAPI, getTeamPostDetailAPI, deleteTeamPostAPI, createTeamPostCommentAPI, likeTeamPostAPI, getTeamPostLikeStatusAPI, pinTeamPostAPI, featureTeamPostAPI, searchTeamPostsAPI, collectTeamPostAPI, getTeamPostCollectStatusAPI, getTeamPostsCollectedAPI, setTeamAdminAPI, getTeamMessagesAPI, sendTeamMessageAPI, markMessageReadAPI, deleteTeamMessageAPI, getTeamOperationLogsAPI, removeTeamMemberAPI, sendPrivateMessageAPI } from '../api'
 
 const route = useRoute()
 const router = useRouter()
@@ -1344,6 +1345,10 @@ const isPrivate = computed(() => {
   return team.value?.is_public === false
 })
 
+const goToBloggerDetail = (bloggerId) => {
+  router.push(`/blogger/${bloggerId}`)
+}
+
 const isTeamMember = computed(() => {
   if (!team.value) return false
   return userStore.team_id === team.value.id
@@ -1390,10 +1395,7 @@ const getUserColor = (user) => {
 const showAllUsersDialog = async () => {
   allUsersDialogVisible.value = true
   try {
-    const res = await fetch('/api/users/public', {
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
+    const data = await getPublicUsersAPI()
     if (data.code === 200) {
       allUsersList.value = data.data.filter(u => u.status === 'active') || []
     }
@@ -1423,18 +1425,10 @@ const submitPrivateMessage = async () => {
   if (!privateMessageContent.value.trim() || !selectedUser.value) return
   
   try {
-    const res = await fetch('/api/messages/private', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify({
-        to_user_id: selectedUser.value.id,
-        content: privateMessageContent.value
-      })
+    const data = await sendPrivateMessageAPI({
+      to_user_id: selectedUser.value.id,
+      content: privateMessageContent.value
     })
-    const data = await res.json()
     if (data.code === 200) {
       success('私信发送成功')
       closePrivateMessageDialog()
@@ -1472,11 +1466,12 @@ const loadTeamData = async () => {
     }
 
     if (usersRes.code === 200) {
-      members.value = usersRes.data.filter(u => String(u.team_id) === String(teamId.value) && u.status === 'active')
+      const users = usersRes.data || []
+      members.value = users.filter(u => String(u.team_id) === String(teamId.value) && u.status === 'active')
     }
 
     if (postsRes.code === 200) {
-      posts.value = postsRes.data || []
+      posts.value = postsRes.data.list || postsRes.data || []
     }
 
     if (messagesRes.code === 200) {
@@ -1495,14 +1490,14 @@ const loadTeamData = async () => {
       })
     } else {
       // 团队不存在
-      error.value = '团队不存在或已被删除'
+      notifyError('团队不存在或已被删除')
     }
-  } catch (error) {
-    console.error('加载小组数据失败', error)
-    error.value = error.response?.status === 401 
+  } catch (err) {
+    console.error('加载小组数据失败', err)
+    const errorMsg = err.response?.status === 401 
       ? '请先登录' 
       : '加载数据失败，请检查网络连接'
-    notifyError(error.value)
+    notifyError(errorMsg)
   } finally {
     loading.value = false
   }
@@ -1532,8 +1527,9 @@ const loadPosts = async () => {
     const category = selectedCategory.value === '全部' ? '' : selectedCategory.value
     const res = await getTeamPostsAPI(teamId.value, postsPage.value, 20, category)
     if (res.code === 200) {
-      posts.value = res.data || []
-      postsTotal.value = res.total || 0
+      const rawPosts = res.data.list || res.data || []
+      posts.value = rawPosts.filter(p => p && p.id != null)
+      postsTotal.value = res.data.total || res.total || 0
     }
   } catch (error) {
     console.error('加载帖子失败', error)
@@ -2725,7 +2721,7 @@ watch(() => route.params.teamId, () => {
 }
 
 .badge-danger {
-  background: #ef4444 !important;
+  background: var(--danger) !important;
 }
 
 .nav-item.action {
@@ -2733,7 +2729,7 @@ watch(() => route.params.teamId, () => {
 }
 
 .nav-item.danger {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .nav-item.danger:hover {
@@ -3307,11 +3303,11 @@ watch(() => route.params.teamId, () => {
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  background: #f3f4f6;
+  background: var(--bg-hover);
   border: none;
   border-radius: 10px;
   font-size: 13px;
-  color: #1f2937;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -3518,7 +3514,7 @@ html.dark .modal-overlay {
 }
 
 .modal {
-  background: #ffffff !important;
+  background: var(--bg-card) !important;
   border-radius: 20px !important;
   width: 90% !important;
   max-width: 500px !important;
@@ -3544,8 +3540,8 @@ html.dark .modal-overlay {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 2px solid #e5e7eb;
-  background: #f9fafb;
+  border-bottom: 2px solid var(--border-color);
+  background: var(--bg-card-hover);
 }
 
 .modal-header h3 {
@@ -3610,7 +3606,7 @@ html.dark .modal-overlay {
 
 .modal-body {
   padding: 24px;
-  background: #ffffff;
+  background: var(--bg-card);
 }
 
 .logs-modal .modal-body {
@@ -3632,8 +3628,8 @@ html.dark .modal-overlay {
   display: flex;
   gap: 12px;
   padding: 12px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 
@@ -3643,8 +3639,8 @@ html.dark .modal-overlay {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 16px;
 }
@@ -3678,7 +3674,7 @@ html.dark .modal-overlay {
   gap: 12px;
   padding: 20px 24px;
   border-top: 2px solid #e5e7eb;
-  background: #f9fafb;
+  background: var(--bg-card-hover);
 }
 
 .form-field {
@@ -4098,7 +4094,7 @@ html.dark .post-detail-modal-wrapper {
   height: 32px;
   border-radius: 8px;
   border: none;
-  background: #f3f4f6;
+  background: var(--bg-hover);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -4117,7 +4113,7 @@ html.dark .post-detail-modal-wrapper {
 }
 
 .modal-close-btn:hover {
-  background: #ef4444;
+  background: var(--danger);
 }
 
 .modal-action-btn svg, .modal-close-btn svg {
@@ -4633,7 +4629,7 @@ html.dark .post-detail-modal-wrapper {
 }
 
 .badge-danger {
-  background: #ef4444;
+  background: var(--danger);
   color: white;
 }
 
@@ -4910,7 +4906,7 @@ html.dark .post-detail-modal-wrapper {
   position: absolute;
   top: -2px;
   right: 2px;
-  background: #ef4444;
+  background: var(--danger);
   color: white;
   font-size: 10px;
   padding: 1px 5px;

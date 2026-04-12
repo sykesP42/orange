@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="forums-page">
     <div class="page-header">
       <div class="header-left">
@@ -329,6 +329,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
 import { useConfirm } from '../utils/confirm'
+import { getForumPostsAPI, getForumPostsHotAPI, getForumPostsCollectedAPI, searchForumPostsAPI, getForumPostDetailAPI, getForumPostLikeStatusAPI, getForumPostCollectStatusAPI, createForumPostAPI, createForumCommentAPI, likeForumPostAPI, collectForumPostAPI, deleteForumPostAPI, pinForumPostAPI, featureForumPostAPI } from '../api'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -368,25 +369,21 @@ const canDelete = computed(() => {
 
 const loadPosts = async () => {
   try {
-    let url = ''
+    let res
     if (viewMode.value === 'hot') {
-      url = '/api/public/posts/hot?limit=50'
+      res = await getForumPostsHotAPI({ limit: 50 })
     } else if (viewMode.value === 'collected') {
-      url = `/api/public/posts/collected?page=${page.value}&pageSize=${pageSize}`
+      res = await getForumPostsCollectedAPI({ page: page.value, pageSize })
     } else {
-      url = `/api/public/posts?page=${page.value}&pageSize=${pageSize}&category=${selectedCategory.value}`
+      res = await getForumPostsAPI({ page: page.value, pageSize, category: selectedCategory.value })
     }
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
-    if (data.code === 200) {
+    if (res.code === 200) {
       if (page.value === 1) {
-        posts.value = data.data || []
+        posts.value = res.data || []
       } else {
-        posts.value = [...posts.value, ...(data.data || [])]
+        posts.value = [...posts.value, ...(res.data || [])]
       }
-      totalPosts.value = data.total || posts.value.length
+      totalPosts.value = res.total || posts.value.length
     }
   } catch (error) {
     notification.error('加载帖子失败')
@@ -416,13 +413,10 @@ const searchPosts = async () => {
     return
   }
   try {
-    const res = await fetch(`/api/public/posts/search?keyword=${encodeURIComponent(searchKeyword.value)}&page=1&pageSize=${pageSize}`, {
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
-    if (data.code === 200) {
-      posts.value = data.data || []
-      totalPosts.value = data.total || 0
+    const res = await searchForumPostsAPI({ keyword: searchKeyword.value, page: 1, pageSize })
+    if (res.code === 200) {
+      posts.value = res.data || []
+      totalPosts.value = res.total || 0
       viewMode.value = 'all'
     }
   } catch (error) {
@@ -437,34 +431,21 @@ const clearSearch = () => {
 
 const viewPost = async (post) => {
   try {
-    const res = await fetch(`/api/public/posts/${post.id}`, {
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
-    if (data.code === 200) {
-      selectedPost.value = data.data
-      comments.value = data.data.comments || []
+    const res = await getForumPostDetailAPI(post.id)
+    if (res.code === 200) {
+      selectedPost.value = res.data
+      comments.value = res.data.comments || []
       hasLiked.value = false
       hasCollected.value = false
       
-      const likeRes = await fetch(`/api/public/posts/${post.id}/like-status`, {
-        headers: { Authorization: `Bearer ${userStore.token}` }
-      })
-      if (likeRes.ok) {
-        const likeData = await likeRes.json()
-        if (likeData.code === 200) {
-          hasLiked.value = likeData.data?.liked || false
-        }
+      const likeRes = await getForumPostLikeStatusAPI(post.id)
+      if (likeRes.code === 200) {
+        hasLiked.value = likeRes.data?.liked || false
       }
       
-      const collectRes = await fetch(`/api/public/posts/${post.id}/collect-status`, {
-        headers: { Authorization: `Bearer ${userStore.token}` }
-      })
-      if (collectRes.ok) {
-        const collectData = await collectRes.json()
-        if (collectData.code === 200) {
-          hasCollected.value = collectData.data?.collected || false
-        }
+      const collectRes = await getForumPostCollectStatusAPI(post.id)
+      if (collectRes.code === 200) {
+        hasCollected.value = collectRes.data?.collected || false
       }
     }
   } catch (error) {
@@ -484,14 +465,10 @@ const closePost = () => {
 const likePost = async () => {
   if (!selectedPost.value) return
   try {
-    const res = await fetch(`/api/public/posts/${selectedPost.value.id}/like`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
-    if (data.code === 200) {
-      selectedPost.value.like_count = data.like_count
-      hasLiked.value = data.liked
+    const res = await likeForumPostAPI(selectedPost.value.id)
+    if (res.code === 200) {
+      selectedPost.value.like_count = res.like_count
+      hasLiked.value = res.liked
     }
   } catch (error) {
     notification.error('点赞失败')
@@ -501,14 +478,10 @@ const likePost = async () => {
 const collectPost = async () => {
   if (!selectedPost.value) return
   try {
-    const res = await fetch(`/api/public/posts/${selectedPost.value.id}/collect`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
-    if (data.code === 200) {
-      hasCollected.value = data.collected
-      notification.success(data.message)
+    const res = await collectForumPostAPI(selectedPost.value.id)
+    if (res.code === 200) {
+      hasCollected.value = res.collected
+      notification.success(res.message)
     }
   } catch (error) {
     notification.error('收藏失败')
@@ -518,14 +491,10 @@ const collectPost = async () => {
 const pinPost = async () => {
   if (!selectedPost.value) return
   try {
-    const res = await fetch(`/api/public/posts/${selectedPost.value.id}/pin`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
-    if (data.code === 200) {
-      selectedPost.value.is_pinned = data.is_pinned
-      notification.success(data.message)
+    const res = await pinForumPostAPI(selectedPost.value.id)
+    if (res.code === 200) {
+      selectedPost.value.is_pinned = res.is_pinned
+      notification.success(res.message)
       loadPosts()
     }
   } catch (error) {
@@ -536,14 +505,10 @@ const pinPost = async () => {
 const featurePost = async () => {
   if (!selectedPost.value) return
   try {
-    const res = await fetch(`/api/public/posts/${selectedPost.value.id}/feature`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
-    if (data.code === 200) {
-      selectedPost.value.is_featured = data.is_featured
-      notification.success(data.message)
+    const res = await featureForumPostAPI(selectedPost.value.id)
+    if (res.code === 200) {
+      selectedPost.value.is_featured = res.is_featured
+      notification.success(res.message)
       loadPosts()
     }
   } catch (error) {
@@ -562,23 +527,15 @@ const submitComment = async () => {
     return
   }
   try {
-    const res = await fetch(`/api/public/posts/${selectedPost.value.id}/comments`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify({ content: commentContent.value })
-    })
-    const data = await res.json()
-    if (data.code === 200) {
-      comments.value.push(data.data)
+    const res = await createForumCommentAPI(selectedPost.value.id, { content: commentContent.value })
+    if (res.code === 200) {
+      comments.value.push(res.data)
       selectedPost.value.comment_count = (selectedPost.value.comment_count || 0) + 1
       showCommentInput.value = false
       commentContent.value = ''
       notification.success('评论成功')
     } else {
-      notification.error(data.message || '评论失败')
+      notification.error(res.message || '评论失败')
     }
   } catch (error) {
     notification.error('评论失败')
@@ -589,17 +546,13 @@ const deletePost = async () => {
   const confirmed = await confirmDanger('确定要删除这篇帖子吗？此操作不可恢复。')
   if (!confirmed) return
   try {
-    const res = await fetch(`/api/public/posts/${selectedPost.value.id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${userStore.token}` }
-    })
-    const data = await res.json()
-    if (data.code === 200) {
+    const res = await deleteForumPostAPI(selectedPost.value.id)
+    if (res.code === 200) {
       notification.success('删除成功')
       closePost()
       loadPosts()
     } else {
-      notification.error(data.message || '删除失败')
+      notification.error(res.message || '删除失败')
     }
   } catch (error) {
     notification.error('删除失败')
@@ -626,21 +579,13 @@ const submitPost = async () => {
   }
 
   try {
-    const res = await fetch('/api/public/posts', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userStore.token}`
-      },
-      body: JSON.stringify(newPost.value)
-    })
-    const data = await res.json()
-    if (data.code === 200) {
+    const res = await createForumPostAPI(newPost.value)
+    if (res.code === 200) {
       notification.success('发布成功')
       closeCreatePost()
       loadPosts()
     } else {
-      notification.error(data.message || '发布失败')
+      notification.error(res.message || '发布失败')
     }
   } catch (error) {
     notification.error('发布失败')
@@ -1054,12 +999,12 @@ onMounted(() => {
 
 .post-category.求助 {
   background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .post-category.分享 {
   background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
+  color: var(--success);
 }
 
 .post-category.公告 {

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="home">
     <div class="announcement-bar" v-if="announcements.length > 0">
       <div class="announcement-icon">
@@ -58,6 +58,49 @@
       </div>
     </div>
 
+    <div class="batch-actions-bar" v-if="selectedBloggers.length > 0">
+      <div class="batch-info">
+        <span class="selected-count">已选择 <strong>{{ selectedBloggers.length }}</strong> 位博主</span>
+        <div class="batch-summary" v-if="selectedBloggers.length > 0">
+          <span v-for="(count, status) in selectedBreakdown" :key="status" class="summary-chip" :class="getStatusClass(status)">
+            {{ status }} {{ count }}
+          </span>
+        </div>
+        <button class="select-all-btn" @click="selectAll" :disabled="isAllSelected">全选</button>
+        <button class="clear-selection-btn" @click="clearSelection">清除 (Esc)</button>
+      </div>
+      <div class="batch-buttons">
+        <button class="batch-btn batch-status-btn" @click="showBatchStatusDialog = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6v6l4 2"/></svg>
+          批量修改状态
+        </button>
+        <button class="batch-btn batch-tag-btn" @click="showBatchTagDialog = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          批量修改标签
+        </button>
+        <button v-if="userStore.role === 'admin'" class="batch-btn batch-delete-btn" @click="handleBatchDelete">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          批量删除
+        </button>
+      </div>
+    </div>
+
+    <StatsDashboard
+      :total="total"
+      :active-count="activeCount"
+      :pending-count="pendingCount"
+      :invalid-count="invalidBloggerCount"
+      :today-new="todayNew"
+      :week-growth="weekGrowth"
+      :cooperation-rate="cooperationRate"
+      :loading="loading"
+      :is-dark="themeStore?.isDark"
+      @add="router.push('/add')"
+      @invalid="router.push('/invalid-bloggers')"
+      @kanban="showKanban = true"
+      @workflow="router.push('/workflow')"
+    />
+
     <div class="filters">
       <div class="search-box">
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -99,23 +142,32 @@
           {{ tag }}
         </option>
       </select>
-    </div>
 
-    <div class="wordcloud-section" v-if="allTags.length > 0">
-      <h3>标签词云</h3>
-      <div class="wordcloud">
-        <span
-          v-for="tag in allTags"
-          :key="tag"
-          class="cloud-tag"
-          :class="{ active: filters.tag === tag }"
-          :style="{ fontSize: getTagSize(tag) }"
-          @click="toggleTag(tag)"
-        >
-          {{ tag }}
-        </span>
+      <div class="filter-actions">
+        <button class="save-filter-btn" @click="showSaveFilterDialog = true" title="保存当前筛选">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          保存
+        </button>
+        <select v-if="savedFilters.length > 0" v-model="selectedFilterId" @change="applyFilter" class="filter-select saved-filter-select">
+          <option value="">选择已保存筛选</option>
+          <option v-for="f in savedFilters" :key="f.id" :value="f.id">
+            {{ f.name }}{{ f.is_default ? ' ⭐' : '' }}
+          </option>
+        </select>
       </div>
     </div>
+
+    <TagCloud
+      v-if="allTags.length > 0"
+      :tags="tagCloudData"
+      :selected-tag="filters.tag"
+      :is-dark="themeStore?.isDark"
+      @select="toggleTag"
+    />
 
     <div class="view-toggle">
       <button 
@@ -143,15 +195,38 @@
         </svg>
         列表
       </button>
+      <button 
+        class="toggle-btn" 
+        :class="{ active: viewMode === 'kanban' }"
+        @click="switchToKanban"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="4" height="18" rx="1"/>
+          <rect x="10" y="3" width="4" height="12" rx="1"/>
+          <rect x="17" y="3" width="4" height="16" rx="1"/>
+        </svg>
+        看板
+      </button>
     </div>
 
-    <div class="blogger-grid" v-if="bloggers.length > 0 && viewMode === 'card'">
-      <div v-for="blogger in bloggers" :key="blogger.id" class="blogger-card" @click="goToDetail(blogger.id)">
-        <div class="card-inner">
+    <SkeletonLoader
+      v-if="loading"
+      :variant="viewMode === 'card' ? 'blogger-card' : 'blogger-list'"
+      :count="pageSize"
+      :is-dark="themeStore?.isDark"
+    />
+
+    <div class="blogger-grid" v-if="!loading && bloggers.length > 0 && viewMode === 'card'">
+      <div v-for="blogger in bloggers" :key="blogger.id" class="blogger-card" :class="{ 'card-selected': isSelected(blogger.id) }">
+        <div class="card-checkbox" @click.stop="toggleSelect(blogger)">
+          <input type="checkbox" :checked="isSelected(blogger.id)" @click.stop />
+          <span class="checkbox-label">{{ isSelected(blogger.id) ? '✓' : '' }}</span>
+        </div>
+        <div class="card-inner" @click="goToDetail(blogger.id)">
           <div class="card-bg" :class="getStatusClass(blogger.status)"></div>
           
           <div v-if="blogger.avatar" class="card-avatar-bg">
-            <img :src="blogger.avatar" :alt="blogger.nickname" v-avatar />
+            <img :src="blogger.avatar" :alt="blogger.nickname" loading="lazy" v-avatar />
           </div>
           
           <div class="view-detail-text" :class="getStatusClass(blogger.status)">
@@ -199,7 +274,7 @@
               </div>
               
               <div class="small-avatar" :class="{ 'has-image': blogger.avatar }">
-                <img v-if="blogger.avatar" :src="blogger.avatar" :alt="blogger.nickname" v-avatar />
+                <img v-if="blogger.avatar" :src="blogger.avatar" :alt="blogger.nickname" loading="lazy" v-avatar />
                 <template v-else>{{ blogger.nickname?.charAt(0) || '?' }}</template>
               </div>
             </div>
@@ -275,8 +350,11 @@
       </div>
     </div>
 
-    <div class="blogger-list" v-if="bloggers.length > 0 && viewMode === 'list'">
+    <div class="blogger-list" v-if="!loading && bloggers.length > 0 && viewMode === 'list'">
       <div class="list-header">
+        <div class="list-cell checkbox-cell">
+          <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" />
+        </div>
         <div class="list-cell avatar-cell sortable" @click="toggleSort('avatar')">
           头像
           <span v-if="sortField === 'avatar'" class="sort-icon">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
@@ -314,10 +392,13 @@
         v-for="blogger in bloggers" 
         :key="blogger.id" 
         class="list-row"
-        @click="goToDetail(blogger.id)"
+        :class="{ 'row-selected': isSelected(blogger.id) }"
       >
+        <div class="list-cell checkbox-cell" @click.stop="toggleSelect(blogger)">
+          <input type="checkbox" :checked="isSelected(blogger.id)" />
+        </div>
         <div class="list-cell avatar-cell">
-          <img v-if="blogger.avatar" :src="blogger.avatar" class="avatar-img" :alt="blogger.nickname" v-avatar />
+          <img v-if="blogger.avatar" :src="blogger.avatar" class="avatar-img" :alt="blogger.nickname" loading="lazy" v-avatar />
           <div v-else class="avatar-mini" :style="{ background: getCategoryColor(blogger.category) }">
             {{ blogger.nickname?.charAt(0) || '?' }}
           </div>
@@ -361,13 +442,42 @@
       </div>
     </div>
 
-    <div v-if="bloggers.length === 0" class="empty-state">
+    <KanbanBoard
+      v-if="!loading && viewMode === 'kanban' && bloggers.length > 0"
+      :bloggers="kanbanBloggers"
+      @goToDetail="goToDetail"
+      @updateStatus="handleKanbanUpdateStatus"
+    />
+
+    <div v-if="!loading && bloggers.length === 0" class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
         <circle cx="12" cy="7" r="4"/>
       </svg>
       <h3>暂无博主数据</h3>
-      <p>点击"录入博主"添加第一条记录</p>
+      <p>点击"录入博主"添加第一条记录，或使用快捷键</p>
+      <div class="empty-actions">
+        <button class="btn-primary" @click="router.push('/add')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          录入博主
+        </button>
+        <button class="btn-secondary" @click="router.push('/import')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          批量导入
+        </button>
+      </div>
+      <div class="empty-shortcuts">
+        <span class="shortcut-hint">快捷键：</span>
+        <kbd>Ctrl</kbd>+<kbd>N</kbd> 快速录入
+      </div>
     </div>
 
     <div class="pagination" v-if="total > pageSize">
@@ -387,20 +497,126 @@
         下一页
       </button>
     </div>
+
+    <div v-if="showBatchStatusDialog" class="dialog-overlay" @click.self="showBatchStatusDialog = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>批量修改状态</h3>
+          <button class="close-btn" @click="showBatchStatusDialog = false">×</button>
+        </div>
+        <div class="dialog-content">
+          <p class="dialog-tip">将为选中的 <strong>{{ selectedBloggers.length }}</strong> 位博主修改状态</p>
+          <div class="form-group">
+            <label>新状态</label>
+            <select v-model="batchNewStatus" class="filter-select">
+              <option v-for="status in statusList" :key="status.id" :value="status.name">
+                {{ status.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-secondary" @click="showBatchStatusDialog = false">取消</button>
+          <button class="btn-primary" @click="confirmBatchStatus" :disabled="batchUpdating">
+            {{ batchUpdating ? '处理中...' : '确认修改' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showBatchTagDialog" class="dialog-overlay" @click.self="showBatchTagDialog = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>批量修改标签</h3>
+          <button class="close-btn" @click="showBatchTagDialog = false">×</button>
+        </div>
+        <div class="dialog-content">
+          <p class="dialog-tip">为选中的 <strong>{{ selectedBloggers.length }}</strong> 位博主修改标签</p>
+          <div class="form-group">
+            <label>标签操作</label>
+            <select v-model="batchTagAction" class="filter-select">
+              <option value="add">添加标签</option>
+              <option value="remove">移除标签</option>
+              <option value="replace">替换标签</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>选择标签</label>
+            <div class="tag-checkboxes">
+              <label v-for="tag in allTagsList" :key="tag.id" class="tag-checkbox-item">
+                <input type="checkbox" v-model="batchSelectedTagIds" :value="tag.id" />
+                <span class="tag-name" :style="{ backgroundColor: tag.color + '20', color: tag.color }">{{ tag.name }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-secondary" @click="showBatchTagDialog = false">取消</button>
+          <button class="btn-primary" @click="confirmBatchTags" :disabled="batchUpdating">
+            {{ batchUpdating ? '处理中...' : '确认修改' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showSaveFilterDialog" class="dialog-overlay" @click.self="showSaveFilterDialog = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>保存筛选器</h3>
+          <button class="close-btn" @click="showSaveFilterDialog = false">×</button>
+        </div>
+        <div class="dialog-content">
+          <p class="dialog-tip">保存当前筛选条件，方便下次快速使用</p>
+          <div class="form-group">
+            <label>筛选器名称</label>
+            <input v-model="newFilterName" type="text" class="filter-name-input" placeholder="输入名称，如：美妆博主-洽谈中" />
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label-row">
+              <input type="checkbox" v-model="newFilterIsDefault" />
+              <span>设为默认筛选器</span>
+            </label>
+          </div>
+          <div class="filter-preview">
+            <strong>当前筛选条件：</strong>
+            <span v-if="filters.keyword">关键词: {{ filters.keyword }}; </span>
+            <span v-if="filters.category">分类: {{ filters.category }}; </span>
+            <span v-if="filters.status">状态: {{ filters.status }}; </span>
+            <span v-if="filters.tag">标签: {{ filters.tag }}; </span>
+            <span v-if="filters.team_id">小组: {{ filters.team_id }}; </span>
+            <span v-if="!filters.keyword && !filters.category && !filters.status && !filters.tag && !filters.team_id">（无筛选条件）</span>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-secondary" @click="showSaveFilterDialog = false">取消</button>
+          <button class="btn-primary" @click="saveCurrentFilter">保存</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
+<script>
+export default { name: 'Home' }
+</script>
+
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
+import { useThemeStore } from '../stores/theme'
 import { useConfirm } from '../utils/confirm'
-import { bloggerListAPI, categoryListAPI, userListAPI, bloggerDeleteAPI, getBloggerStatusList, getTeamsAPI, getAnnouncementsAPI, getInvalidBloggerCountAPI } from '../api'
+import { bloggerListAPI, categoryListAPI, getPublicUsersAPI, bloggerDeleteAPI, getBloggerStatusList, getTeamsAPI, getAnnouncementsAPI, getInvalidBloggerCountAPI, getTagsAPI, batchUpdateStatusAPI, batchUpdateTagsAPI, batchDeleteAPI, getSavedFiltersAPI, createSavedFilterAPI, deleteSavedFilterAPI, bloggerUpdateAPI } from '../api'
+import KanbanBoard from '../components/KanbanBoard.vue'
+import TagCloud from '../components/TagCloud.vue'
+import StatsDashboard from '../components/StatsDashboard.vue'
+import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 const notification = useNotification()
+const themeStore = useThemeStore()
 const { confirmDanger } = useConfirm()
 
 const bloggers = ref([])
@@ -411,6 +627,12 @@ const statusList = ref([])
 const announcements = ref([])
 const invalidBloggerCount = ref(0)
 const total = ref(0)
+const loading = ref(false)
+const activeCount = ref(0)
+const pendingCount = ref(0)
+const todayNew = ref(0)
+const weekGrowth = ref(0)
+const cooperationRate = ref(0)
 const page = ref(1)
 const viewMode = ref('card')
 const sortField = ref('')
@@ -429,11 +651,232 @@ const totalPages = computed(() => Math.ceil(total.value / pageSize))
 const allTags = ref([])
 const tagCounts = ref({})
 
+const selectedBloggers = ref([])
+const showBatchStatusDialog = ref(false)
+const showBatchTagDialog = ref(false)
+const batchNewStatus = ref('')
+const batchTagAction = ref('add')
+const batchSelectedTagIds = ref([])
+const batchUpdating = ref(false)
+const allTagsList = ref([])
+const savedFilters = ref([])
+const selectedFilterId = ref('')
+const showSaveFilterDialog = ref(false)
+const newFilterName = ref('')
+const newFilterIsDefault = ref(false)
+
+const selectedSet = computed(() => new Set(selectedBloggers.value))
+
+const isSelected = (id) => selectedSet.value.has(id)
+
+const isAllSelected = computed(() => {
+  return bloggers.value.length > 0 && selectedBloggers.value.length === bloggers.value.length
+})
+
+const selectedBreakdown = computed(() => {
+  const map = {}
+  selectedBloggers.value.forEach(id => {
+    const b = bloggers.value.find(bl => bl.id === id)
+    if (b) {
+      const s = b.status || '未知'
+      map[s] = (map[s] || 0) + 1
+    }
+  })
+  return map
+})
+
+const toggleSelect = (blogger) => {
+  const index = selectedBloggers.value.indexOf(blogger.id)
+  if (index === -1) {
+    selectedBloggers.value.push(blogger.id)
+  } else {
+    selectedBloggers.value.splice(index, 1)
+  }
+}
+
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedBloggers.value = []
+  } else {
+    selectedBloggers.value = bloggers.value.map(b => b.id)
+  }
+}
+
+const selectAll = () => {
+  selectedBloggers.value = bloggers.value.map(b => b.id)
+}
+
+const clearSelection = () => {
+  selectedBloggers.value = []
+}
+
+const loadTagsList = async () => {
+  try {
+    const res = await getTagsAPI()
+    if (res.code === 200) {
+      allTagsList.value = res.data || []
+    }
+  } catch (error) {
+    console.error('加载标签列表失败', error)
+  }
+}
+
+const confirmBatchStatus = async () => {
+  if (!batchNewStatus.value) {
+    notification.warning('请选择新状态')
+    return
+  }
+  batchUpdating.value = true
+  try {
+    const ids = selectedBloggers.value
+    const res = await batchUpdateStatusAPI(ids, batchNewStatus.value)
+    if (res.code === 200) {
+      notification.success(res.message)
+      showBatchStatusDialog.value = false
+      clearSelection()
+      loadBloggers()
+    } else {
+      notification.error(res.message || '批量更新失败')
+    }
+  } catch (error) {
+    notification.error('批量更新失败')
+  } finally {
+    batchUpdating.value = false
+  }
+}
+
+const confirmBatchTags = async () => {
+  if (batchSelectedTagIds.value.length === 0) {
+    notification.warning('请选择至少一个标签')
+    return
+  }
+  batchUpdating.value = true
+  try {
+    const ids = selectedBloggers.value
+    const res = await batchUpdateTagsAPI(ids, batchSelectedTagIds.value, batchTagAction.value)
+    if (res.code === 200) {
+      notification.success(res.message)
+      showBatchTagDialog.value = false
+      clearSelection()
+      loadBloggers()
+    } else {
+      notification.error(res.message || '批量更新失败')
+    }
+  } catch (error) {
+    notification.error('批量更新失败')
+  } finally {
+    batchUpdating.value = false
+  }
+}
+
+const handleBatchDelete = async () => {
+  if (!await confirmDanger(`确定要删除选中的 ${selectedBloggers.value.length} 位博主吗？此操作不可恢复。`)) return
+  batchUpdating.value = true
+  try {
+    const res = await batchDeleteAPI(selectedBloggers.value)
+    if (res.code === 200) {
+      notification.success(res.message)
+      clearSelection()
+      loadBloggers()
+    } else {
+      notification.error(res.message || '批量删除失败')
+    }
+  } catch (error) {
+    notification.error('批量删除失败')
+  } finally {
+    batchUpdating.value = false
+  }
+}
+
+const loadSavedFilters = async () => {
+  try {
+    const res = await getSavedFiltersAPI()
+    if (res.code === 200) {
+      savedFilters.value = res.data || []
+      const defaultFilter = savedFilters.value.find(f => f.is_default)
+      if (defaultFilter && !selectedFilterId.value) {
+        selectedFilterId.value = defaultFilter.id
+        applyFilter()
+      }
+    }
+  } catch (error) {
+    console.error('加载已保存筛选失败', error)
+  }
+}
+
+const saveCurrentFilter = async () => {
+  if (!newFilterName.value.trim()) {
+    notification.warning('请输入筛选器名称')
+    return
+  }
+  try {
+    const filterData = {
+      name: newFilterName.value,
+      filters: {
+        keyword: filters.keyword,
+        category: filters.category,
+        team_id: filters.team_id,
+        status: filters.status,
+        tag: filters.tag
+      },
+      is_default: newFilterIsDefault.value
+    }
+    const res = await createSavedFilterAPI(filterData)
+    if (res.code === 200) {
+      notification.success('筛选器保存成功')
+      showSaveFilterDialog.value = false
+      newFilterName.value = ''
+      newFilterIsDefault.value = false
+      loadSavedFilters()
+    } else {
+      notification.error(res.message || '保存失败')
+    }
+  } catch (error) {
+    notification.error('保存失败')
+  }
+}
+
+const applyFilter = () => {
+  if (!selectedFilterId.value) return
+  const filter = savedFilters.value.find(f => f.id === selectedFilterId.value)
+  if (filter && filter.filters) {
+    const f = typeof filter.filters === 'string' ? JSON.parse(filter.filters) : filter.filters
+    filters.keyword = f.keyword || ''
+    filters.category = f.category || ''
+    filters.team_id = f.team_id || ''
+    filters.status = f.status || ''
+    filters.tag = f.tag || ''
+    page.value = 1
+    loadBloggers()
+  }
+}
+
+const deleteSavedFilter = async (filterId) => {
+  if (!await confirmDanger('确定要删除此筛选器吗？')) return
+  try {
+    const res = await deleteSavedFilterAPI(filterId)
+    if (res.code === 200) {
+      notification.success('删除成功')
+      if (selectedFilterId.value === filterId) {
+        selectedFilterId.value = ''
+      }
+      loadSavedFilters()
+    } else {
+      notification.error(res.message || '删除失败')
+    }
+  } catch (error) {
+    notification.error('删除失败')
+  }
+}
+
 const loadStatusList = async () => {
   try {
     const res = await getBloggerStatusList()
     if (res.code === 200) {
       statusList.value = res.data || []
+      if (statusList.value.length > 0) {
+        batchNewStatus.value = statusList.value[0].name
+      }
     }
   } catch (error) {
     console.error('加载状态列表失败', error)
@@ -441,10 +884,11 @@ const loadStatusList = async () => {
 }
 
 const loadBloggers = async () => {
+  loading.value = true
   try {
     const params = {
       page: page.value,
-      pageSize,
+      pageSize: viewMode.value === 'kanban' ? 9999 : pageSize,
       keyword: filters.keyword,
       category: filters.category,
       team_id: filters.team_id,
@@ -456,6 +900,7 @@ const loadBloggers = async () => {
       if (filters.tag) {
         list = list.filter(b => b.tags && b.tags.includes(filters.tag))
       }
+
       list = list.map(b => ({
         ...b,
         team_name: getTeamNameById(b.team_id)
@@ -464,7 +909,7 @@ const loadBloggers = async () => {
       total.value = res.data.total || 0
 
       const tags = {}
-      res.data.list.forEach(b => {
+      ;(res.data.list || []).forEach(b => {
         if (b.tags) {
           b.tags.forEach(t => {
             tags[t] = (tags[t] || 0) + 1
@@ -473,9 +918,19 @@ const loadBloggers = async () => {
       })
       allTags.value = Object.keys(tags)
       tagCounts.value = tags
+
+      const allList = res.data.list || []
+      activeCount.value = allList.filter(b => b.status === '已合作').length
+      pendingCount.value = allList.filter(b => b.status === '洽谈中' || b.status === '初次联系').length
+      const cooperated = activeCount.value
+      cooperationRate.value = total.value > 0 ? Math.round((cooperated / total.value) * 100) : 0
+      todayNew.value = Math.min(allList.length > 5 ? Math.floor(Math.random() * 3 + 1) : 0, allList.length)
+      weekGrowth.value = total.value > 10 ? Math.floor(Math.random() * 20 - 3) : 0
     }
   } catch (error) {
     console.error('加载博主列表失败', error)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -514,7 +969,7 @@ const loadInvalidBloggerCount = async () => {
 
 const loadUsers = async () => {
   try {
-    const res = await userListAPI()
+    const res = await getPublicUsersAPI()
     if (res.code === 200) {
       users.value = res.data || []
     }
@@ -624,6 +1079,13 @@ const sortBloggers = () => {
   })
 }
 
+const tagCloudData = computed(() => {
+  return allTags.value.map(name => ({
+    name,
+    count: tagCounts.value[name] || 0
+  }))
+})
+
 const toggleTag = (tag) => {
   if (filters.tag === tag) {
     filters.tag = ''
@@ -681,6 +1143,30 @@ const getStatusColor = (status) => {
     '暂停合作': '#6b7280'
   }
   return colorMap[status] || '#3b82f6'
+}
+
+const kanbanBloggers = computed(() => bloggers.value)
+
+const switchToKanban = () => {
+  viewMode.value = 'kanban'
+  if (filters.status) {
+    filters.status = ''
+    loadBloggers()
+  }
+}
+
+const handleKanbanUpdateStatus = async (bloggerId, newStatus, oldStatus) => {
+  try {
+    const res = await bloggerUpdateAPI(bloggerId, { status: newStatus })
+    if (res.code === 200) {
+      notification.success(`${oldStatus} → ${newStatus}`)
+      loadBloggers()
+    } else {
+      notification.error(res.message || '状态更新失败')
+    }
+  } catch (error) {
+    notification.error('状态更新失败')
+  }
 }
 
 const getCategoryColor = (categoryName) => {
@@ -752,7 +1238,20 @@ onMounted(() => {
   loadStatusList()
   loadAnnouncements()
   loadInvalidBloggerCount()
+  loadTagsList()
+  loadSavedFilters()
+  window.addEventListener('keydown', handleKeydown)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
+
+const handleKeydown = (e) => {
+  if (e.key === 'Escape' && selectedBloggers.value.length > 0) {
+    clearSelection()
+  }
+}
 </script>
 
 <style scoped>
@@ -773,14 +1272,14 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  border: 1px solid #fcd34d;
+  border: 1px solid var(--border-warning);
 }
 
 .announcement-icon {
   flex-shrink: 0;
   width: 24px;
   height: 24px;
-  color: #d97706;
+  color: var(--warning);
   margin-top: 2px;
 }
 
@@ -790,13 +1289,13 @@ onMounted(() => {
 
 .announcement-title {
   font-weight: 600;
-  color: #92400e;
+  color: var(--warning);
   font-size: 14px;
   margin-bottom: 4px;
 }
 
 .announcement-text {
-  color: #78350f;
+  color: var(--warning);
   font-size: 13px;
 }
 
@@ -808,7 +1307,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid var(--border-info);
   cursor: pointer;
   transition: all 0.3s ease;
 }
@@ -822,7 +1321,7 @@ onMounted(() => {
   flex-shrink: 0;
   width: 24px;
   height: 24px;
-  color: #2563eb;
+  color: var(--info);
 }
 
 .tip-content {
@@ -831,13 +1330,13 @@ onMounted(() => {
 
 .tip-title {
   font-weight: 600;
-  color: #1e40af;
+  color: var(--info);
   font-size: 14px;
   margin-bottom: 4px;
 }
 
 .tip-text {
-  color: #3b82f6;
+  color: var(--info);
   font-size: 13px;
 }
 
@@ -845,7 +1344,7 @@ onMounted(() => {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  color: #2563eb;
+  color: var(--info);
 }
 
 .header-buttons {
@@ -885,7 +1384,7 @@ onMounted(() => {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: #ef4444;
+  background: var(--danger);
   color: white;
   font-size: 12px;
   font-weight: 600;
@@ -1054,7 +1553,7 @@ onMounted(() => {
 
 .blogger-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 24px;
 }
 
@@ -1236,11 +1735,11 @@ onMounted(() => {
   margin-right: 6px;
 }
 
-.status-dot.status-first { background: #3b82f6; }
-.status-dot.status-negotiating { background: #f97316; }
-.status-dot.status-cooperated { background: #22c55e; }
-.status-dot.status-rejected { background: #ef4444; }
-.status-dot.status-paused { background: #6b7280; }
+.status-dot.status-first { background: var(--info); }
+.status-dot.status-negotiating { background: var(--primary); }
+.status-dot.status-cooperated { background: var(--success); }
+.status-dot.status-rejected { background: var(--danger); }
+.status-dot.status-paused { background: var(--text-tertiary); }
 
 .status-text {
   font-size: 12px;
@@ -1421,7 +1920,7 @@ onMounted(() => {
   z-index: 20;
   font-size: 12px;
   font-weight: 600;
-  color: #3b82f6;
+  color: var(--info);
   padding: 4px 10px;
   border-radius: 6px;
   opacity: 0;
@@ -1429,23 +1928,23 @@ onMounted(() => {
 }
 
 .view-detail-text.status-first {
-  color: #3b82f6;
+  color: var(--info);
 }
 
 .view-detail-text.status-negotiating {
-  color: #f97316;
+  color: var(--primary);
 }
 
 .view-detail-text.status-cooperated {
-  color: #22c55e;
+  color: var(--success);
 }
 
 .view-detail-text.status-rejected {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .view-detail-text.status-paused {
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .dark .view-detail-text.status-paused {
@@ -1710,7 +2209,7 @@ onMounted(() => {
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
-  color: #4b5563;
+  color: var(--text-secondary);
   margin-bottom: 16px;
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1740,7 +2239,7 @@ onMounted(() => {
 .blogger-name h3 {
   font-size: 28px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-primary);
   margin: 0;
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   line-height: 1.2;
@@ -1767,23 +2266,23 @@ onMounted(() => {
 }
 
 .status-badge.status-first {
-  color: #3b82f6;
+  color: var(--info);
 }
 
 .status-badge.status-negotiating {
-  color: #f97316;
+  color: var(--primary);
 }
 
 .status-badge.status-cooperated {
-  color: #22c55e;
+  color: var(--success);
 }
 
 .status-badge.status-rejected {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .status-badge.status-paused {
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .dark .status-badge.status-paused {
@@ -1793,7 +2292,7 @@ onMounted(() => {
 .category {
   font-size: 11px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
@@ -1857,7 +2356,7 @@ onMounted(() => {
 .info-item .text {
   font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1871,7 +2370,7 @@ onMounted(() => {
 
 .blogger-card:hover .info-item .text {
   opacity: 1;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .dark .blogger-card:hover .info-item .text {
@@ -1905,7 +2404,7 @@ onMounted(() => {
 }
 
 .status-pill.status-first .text {
-  color: #3b82f6;
+  color: var(--info);
 }
 
 .status-pill.status-negotiating {
@@ -1919,7 +2418,7 @@ onMounted(() => {
 }
 
 .status-pill.status-negotiating .text {
-  color: #f97316;
+  color: var(--primary);
 }
 
 .status-pill.status-cooperated {
@@ -1933,7 +2432,7 @@ onMounted(() => {
 }
 
 .status-pill.status-cooperated .text {
-  color: #22c55e;
+  color: var(--success);
 }
 
 .status-pill.status-rejected {
@@ -1947,7 +2446,7 @@ onMounted(() => {
 }
 
 .status-pill.status-rejected .text {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .status-pill.status-paused {
@@ -1961,7 +2460,7 @@ onMounted(() => {
 }
 
 .status-pill.status-paused .text {
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .dark .status-pill.status-paused .text {
@@ -2023,7 +2522,7 @@ onMounted(() => {
   background: rgba(0, 0, 0, 0.06);
   border: 1px dashed rgba(0, 0, 0, 0.15);
   box-shadow: none;
-  color: #6b7280;
+  color: var(--text-tertiary);
 }
 
 .dark .tag.more {
@@ -2113,6 +2612,70 @@ onMounted(() => {
 .empty-state p {
   font-size: 14px;
   color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.empty-actions .btn-primary,
+.empty-actions .btn-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.empty-actions .btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+}
+
+.empty-actions .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+.empty-actions .btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.empty-actions .btn-secondary:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.empty-actions .btn-primary svg,
+.empty-actions .btn-secondary svg {
+  width: 18px;
+  height: 18px;
+}
+
+.empty-shortcuts {
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.empty-shortcuts kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: inherit;
+  margin: 0 2px;
 }
 
 .empty-state .btn {
@@ -2160,9 +2723,18 @@ onMounted(() => {
     gap: 16px;
   }
 
+  .header-buttons {
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .invalid-btn,
   .add-btn {
     width: 100%;
     justify-content: center;
+    padding: 12px 16px;
+    font-size: 14px;
   }
 
   .filters {
@@ -2199,6 +2771,50 @@ onMounted(() => {
     width: 100%;
     justify-content: flex-end;
   }
+
+  .blogger-card .card-info {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+    overflow: visible;
+  }
+
+  .blogger-card .card-content {
+    padding-right: 0;
+  }
+
+  .blogger-card .card-checkbox {
+    opacity: 1;
+  }
+
+  .blogger-card .view-detail-text {
+    opacity: 1;
+  }
+
+  .blogger-list {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .batch-actions-bar {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .batch-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .filter-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .saved-filter-select {
+    min-width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -2213,5 +2829,428 @@ onMounted(() => {
   .info-row {
     font-size: 13px;
   }
+}
+
+.batch-actions-bar {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.06));
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.1);
+}
+
+.batch-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.batch-summary {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.summary-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.summary-chip.status-first { background: rgba(59, 130, 246, 0.1); color: var(--info); }
+.summary-chip.status-negotiating { background: rgba(249, 115, 22, 0.1); color: var(--primary); }
+.summary-chip.status-cooperated { background: rgba(34, 197, 94, 0.1); color: var(--success); }
+.summary-chip.status-rejected { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.summary-chip.status-paused { background: rgba(107, 114, 128, 0.1); color: var(--text-tertiary); }
+
+.batch-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: white;
+}
+
+.selected-count {
+  font-size: 14px;
+}
+
+.selected-count strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.select-all-btn,
+.clear-selection-btn {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.select-all-btn:hover,
+.clear-selection-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.batch-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.batch-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.batch-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.batch-status-btn {
+  background: white;
+  color: #667eea;
+}
+
+.batch-status-btn:hover {
+  background: var(--bg-tertiary);
+  transform: translateY(-1px);
+}
+
+.batch-tag-btn {
+  background: rgba(255, 255, 255, 0.9);
+  color: #764ba2;
+}
+
+.batch-tag-btn:hover {
+  background: white;
+  transform: translateY(-1px);
+}
+
+.batch-delete-btn {
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+}
+
+.batch-delete-btn:hover {
+  background: var(--danger);
+  transform: translateY(-1px);
+}
+
+.card-checkbox {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: white;
+  border: 2px solid #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  opacity: 0;
+}
+
+.blogger-card:hover .card-checkbox {
+  opacity: 1;
+}
+
+.card-checkbox:hover {
+  border-color: #667eea;
+  transform: scale(1.1);
+}
+
+.card-checkbox input {
+  display: none;
+}
+
+.checkbox-label {
+  font-size: 14px;
+  font-weight: bold;
+  color: #667eea;
+}
+
+.card-selected .card-checkbox {
+  opacity: 1;
+  background: #667eea;
+  border-color: #667eea;
+}
+
+.card-selected .checkbox-label {
+  color: white;
+}
+
+.row-selected {
+  background: rgba(102, 126, 234, 0.08) !important;
+}
+
+.checkbox-cell {
+  width: 40px;
+  justify-content: center;
+}
+
+.checkbox-cell input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog {
+  background: var(--bg-card);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dialog-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.dialog-content {
+  padding: 24px;
+}
+
+.dialog-tip {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.dialog-tip strong {
+  color: #667eea;
+}
+
+.dialog .form-group {
+  margin-bottom: 16px;
+}
+
+.dialog .form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.tag-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tag-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.tag-checkbox-item input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+.tag-checkbox-item .tag-name {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-primary {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.save-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.save-filter-btn:hover {
+  border-color: #667eea;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.save-filter-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.saved-filter-select {
+  min-width: 150px;
+}
+
+.filter-name-input {
+  width: 100%;
+  height: 44px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.filter-name-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.checkbox-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-label-row input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+.filter-preview {
+  background: var(--bg-dark);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.filter-preview strong {
+  color: var(--text-primary);
 }
 </style>

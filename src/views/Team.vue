@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="team-page">
     <div class="page-header">
       <div class="header-left">
@@ -7,9 +7,18 @@
       </div>
       <div class="header-right" v-if="isAtTop">
         <div class="action-buttons">
-          <button @click="goToPublicForum" class="action-btn public-forum-btn" @mouseenter="triggerHeaderEffect" @mouseleave="removeHeaderGlow">
-            <div class="btn-bg-effect"></div>
-            <div class="btn-shine"></div>
+          <button @click="goToChat" class="action-btn chat-btn">
+            <div class="btn-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+            </div>
+            <div class="btn-text">
+              <span class="btn-title">消息中心</span>
+              <span class="btn-subtitle">即时通讯</span>
+            </div>
+          </button>
+          <button @click="goToPublicForum" class="action-btn public-forum-btn">
             <div class="btn-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -20,9 +29,7 @@
               <span class="btn-subtitle">参与讨论</span>
             </div>
           </button>
-          <button v-if="hasTeam" class="action-btn my-team-btn" @click="goToMyTeam" title="进入我的团队主页" @mouseenter="triggerHeaderEffect" @mouseleave="removeHeaderGlow">
-            <div class="btn-bg-effect"></div>
-            <div class="btn-shine"></div>
+          <button v-if="hasTeam" class="action-btn my-team-btn" @click="goToMyTeam" title="进入我的团队主页">
             <div class="btn-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -39,6 +46,17 @@
     </div>
 
     <div class="fixed-action-buttons" :class="{ 'show': showButtons, 'expanded': expanded }" @mouseenter="handleMouseEnter" @mouseleave="handleMouseLeave">
+      <button @click="goToChat" class="fixed-action-btn chat-btn" title="前往消息中心">
+        <div class="btn-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+          </svg>
+        </div>
+        <div class="btn-text">
+          <span class="btn-title">消息中心</span>
+          <span class="btn-subtitle">即时通讯</span>
+        </div>
+      </button>
       <button @click="goToPublicForum" class="fixed-action-btn public-forum-btn" title="前往公共论坛">
         <div class="btn-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -434,7 +452,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
 import { useConfirm } from '../utils/confirm'
-import { getTeamsAPI, createTeamAPI, updateTeamAPI, deleteTeamAPI, setUserTeamAPI, updateMyTeamAPI, getPublicUsersAPI } from '../api'
+import { getTeamsAPI, createTeamAPI, updateTeamAPI, deleteTeamAPI, setUserTeamAPI, updateMyTeamAPI, getPublicUsersAPI, uploadTeamLogoAPI, uploadTeamBgAPI } from '../api'
 
 const router = useRouter()
 const route = useRoute()
@@ -598,6 +616,10 @@ const goToPublicForum = () => {
   router.push('/forums')
 }
 
+const goToChat = () => {
+  router.push('/chat')
+}
+
 const openCreateTeam = () => {
   if (localStorage.getItem('team_id')) {
     warning('您已加入其他团队，如需创建新团队请先退出当前团队')
@@ -648,63 +670,53 @@ const triggerBgUpload = () => {
 const handleLogoUpload = async (e) => {
   const file = e.target.files[0]
   if (!file) return
-
-  const reader = new FileReader()
-  reader.onload = async () => {
-    const base64Data = reader.result
-    try {
-      const res = await fetch('/api/upload/team-logo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ image: base64Data })
-      })
-      const data = await res.json()
-      if (data.code === 200) {
-        formData.value.logo = data.data.url
-        success('Logo上传成功')
-      } else {
-        notifyError(data.message || '上传失败')
-      }
-    } catch (error) {
-      notifyError('上传失败')
+  
+  try {
+    const base64Data = await new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target.result)
+      reader.readAsDataURL(file)
+    })
+    
+    const res = await uploadTeamLogoAPI({ image: base64Data })
+    if (res.code === 200) {
+      formData.value.logo = res.data.url
+      success('Logo上传成功')
+    } else {
+      notifyError(res.message || '上传失败')
     }
+  } catch (error) {
+    console.error('Logo upload error:', error)
+    notifyError('上传失败')
+  } finally {
+    e.target.value = ''
   }
-  reader.readAsDataURL(file)
-  e.target.value = ''
 }
 
 const handleBgUpload = async (e) => {
   const file = e.target.files[0]
   if (!file) return
-
-  const reader = new FileReader()
-  reader.onload = async () => {
-    const base64Data = reader.result
-    try {
-      const res = await fetch('/api/upload/team-bg', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ image: base64Data })
-      })
-      const data = await res.json()
-      if (data.code === 200) {
-        formData.value.bg_image = data.data.url
-        success('背景上传成功')
-      } else {
-        notifyError(data.message || '上传失败')
-      }
-    } catch (error) {
-      notifyError('上传失败')
+  
+  try {
+    const base64Data = await new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target.result)
+      reader.readAsDataURL(file)
+    })
+    
+    const res = await uploadTeamBgAPI({ image: base64Data })
+    if (res.code === 200) {
+      formData.value.bg_image = res.data.url
+      success('背景上传成功')
+    } else {
+      notifyError(res.message || '上传失败')
     }
+  } catch (error) {
+    console.error('Background upload error:', error)
+    notifyError('上传失败')
+  } finally {
+    e.target.value = ''
   }
-  reader.readAsDataURL(file)
-  e.target.value = ''
 }
 
 const saveTeam = async () => {
@@ -941,100 +953,42 @@ onUnmounted(() => {
 .action-btn {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
+  gap: 12px;
+  padding: 14px 18px;
   border: none;
-  border-radius: 20px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  min-width: 220px;
-  position: relative;
-  overflow: hidden;
-  transform: translateY(0);
-}
-
-.btn-bg-effect {
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
-  opacity: 0;
-  transform: scale(0.5);
-  transition: all 0.5s ease;
-  pointer-events: none;
-}
-
-.action-btn:hover .btn-bg-effect {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.btn-shine {
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-  transition: left 0.6s ease;
-  pointer-events: none;
-}
-
-.action-btn:hover .btn-shine {
-  left: 100%;
-}
-
-.action-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.3), transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 1;
-}
-
-.action-btn:hover::before {
-  opacity: 1;
+  transition: all 0.2s ease;
+  min-width: 200px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: #333;
 }
 
 .action-btn:hover {
-  transform: translateY(-8px) scale(1.08) scaleY(1.05);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .action-btn:active {
-  transform: translateY(-4px) scale(1.02);
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .btn-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,0.2);
-  border-radius: 12px;
+  border-radius: 8px;
   flex-shrink: 0;
-  position: relative;
-  z-index: 2;
-  transition: all 0.3s ease;
-}
-
-.action-btn:hover .btn-icon {
-  background: rgba(255,255,255,0.3);
-  transform: scale(1.1);
+  color: white;
 }
 
 .btn-icon svg {
-  width: 28px;
-  height: 28px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+  width: 20px;
+  height: 20px;
 }
 
 .btn-text {
@@ -1042,67 +996,54 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: flex-start;
   text-align: left;
-  position: relative;
-  z-index: 2;
 }
 
 .btn-title {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.2;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .btn-subtitle {
   font-size: 12px;
-  opacity: 0.8;
-  margin-top: 4px;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.action-btn.chat-btn {
+  background: rgba(102, 126, 234, 0.05);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.action-btn.chat-btn .btn-icon {
+  background: #667eea;
 }
 
 .action-btn.public-forum-btn {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa);
-  background-size: 200% 200%;
-  color: white;
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
-  animation: gradientShift 3s ease infinite;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
-@keyframes gradientShift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.action-btn.public-forum-btn .btn-glow {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(139, 92, 246, 0.5));
-}
-
-.action-btn.public-forum-btn:hover {
-  background: linear-gradient(135deg, #8b5cf6, #a78bfa, #c4b5fd);
-  background-size: 200% 200%;
-  box-shadow: 0 16px 48px rgba(99, 102, 241, 0.6), 0 0 80px rgba(139, 92, 246, 0.4);
+.action-btn.public-forum-btn .btn-icon {
+  background: #6366f1;
 }
 
 .action-btn.my-team-btn {
-  background: linear-gradient(135deg, #ff6b35, #f7931e, #ff8c5a);
-  background-size: 200% 200%;
-  color: white;
-  box-shadow: 0 8px 24px rgba(255, 107, 53, 0.4);
-  animation: gradientShift 3s ease infinite;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
-.action-btn.my-team-btn .btn-glow {
-  background: linear-gradient(135deg, rgba(255, 107, 53, 0.5), rgba(247, 147, 30, 0.5));
+.action-btn.my-team-btn .btn-icon {
+  background: var(--info);
 }
 
-.action-btn.my-team-btn:hover {
-  background: linear-gradient(135deg, #f7931e, #ff8c5a, #ffb594);
-  background-size: 200% 200%;
-  box-shadow: 0 16px 48px rgba(255, 107, 53, 0.6), 0 0 80px rgba(247, 147, 30, 0.4);
+.action-btn.my-team-btn {
+  background: rgba(255, 107, 53, 0.05);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+}
+
+.action-btn.my-team-btn .btn-icon {
+  background: #ff6b35;
 }
 
 .fixed-action-buttons {
@@ -1980,7 +1921,7 @@ html.dark .modal {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 8px;
-  color: #ef4444;
+  color: var(--danger);
   font-size: 14px;
   margin-bottom: 16px;
 }

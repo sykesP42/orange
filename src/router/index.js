@@ -5,7 +5,8 @@ const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: () => import('../views/Login.vue')
+    component: () => import('../views/Login.vue'),
+    meta: { title: '登录' }
   },
   {
     path: '/',
@@ -14,63 +15,116 @@ const routes = [
       {
         path: '',
         name: 'Home',
-        component: () => import('../views/Home.vue')
+        component: () => import('../views/Home.vue'),
+        meta: { title: '首页' }
       },
       {
         path: 'my',
         name: 'My',
-        component: () => import('../views/My.vue')
+        component: () => import('../views/My.vue'),
+        meta: { title: '个人中心' }
       },
       {
         path: 'add',
         name: 'Add',
-        component: () => import('../views/Add.vue')
+        component: () => import('../views/Add.vue'),
+        meta: { title: '录入博主' }
+      },
+      {
+        path: 'my-bloggers',
+        name: 'MyBloggers',
+        component: () => import('../views/MyBloggers.vue'),
+        meta: { title: '我的博主' }
       },
       {
         path: 'statistics',
         name: 'Statistics',
-        component: () => import('../views/Statistics.vue')
+        component: () => import('../views/Statistics.vue'),
+        meta: { title: '数据统计' }
+      },
+      {
+        path: 'calendar',
+        name: 'Calendar',
+        component: () => import('../views/CalendarPage.vue'),
+        meta: { title: '提醒日历' }
       },
       {
         path: 'team',
         name: 'Team',
-        component: () => import('../views/Team.vue')
+        component: () => import('../views/Team.vue'),
+        meta: { title: '团队中心' }
       },
       {
         path: 'admin',
         name: 'Admin',
         component: () => import('../views/Admin.vue'),
-        meta: { requiresAdmin: true }
+        meta: { requiresAdmin: true, title: '管理后台' }
       },
       {
         path: 'team/:teamId',
         name: 'TeamHome',
-        component: () => import('../views/TeamHome.vue')
+        component: () => import('../views/TeamHome.vue'),
+        meta: { title: '小组主页' }
       },
       {
         path: 'forums',
         name: 'Forums',
-        component: () => import('../views/Forums.vue')
+        component: () => import('../views/Forums.vue'),
+        meta: { title: '公共论坛' }
       },
       {
         path: 'log',
         name: 'Log',
-        component: () => import('../views/Log.vue')
+        component: () => import('../views/Log.vue'),
+        meta: { title: '操作日志' }
+      },
+      {
+        path: 'analytics',
+        name: 'Analytics',
+        component: () => import('../views/AnalyticsDashboard.vue'),
+        meta: { title: '数据分析' }
       },
       {
         path: 'blogger/:id',
         name: 'BloggerDetail',
-        component: () => import('../views/BloggerDetail.vue')
+        component: () => import('../views/BloggerDetail.vue'),
+        meta: { title: '博主详情' }
       },
       {
         path: 'user/:username',
         name: 'UserDetail',
-        component: () => import('../views/UserDetail.vue')
+        component: () => import('../views/UserDetail.vue'),
+        meta: { title: '用户详情' }
+      },
+      {
+        path: 'user-settings',
+        name: 'UserSettings',
+        component: () => import('../views/UserSettings.vue'),
+        meta: { title: '个人设置' }
       },
       {
         path: 'invalid-bloggers',
         name: 'InvalidBloggers',
-        component: () => import('../views/InvalidBloggers.vue')
+        component: () => import('../views/InvalidBloggers.vue'),
+        meta: { title: '失效博主库' }
+      },
+      {
+        path: 'public-users',
+        name: 'PublicUsers',
+        component: () => import('../views/PublicUsers.vue'),
+        meta: { title: '公开用户' }
+      },
+      {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('../views/Chat.vue'),
+        meta: { title: '私信' }
+      },
+      {
+        path: 'workflow',
+        name: 'Workflow',
+        component: () => import('../views/Workflow.vue'),
+        meta: { title: '工作流自动化' }
       }
     ]
   }
@@ -82,9 +136,8 @@ const router = createRouter({
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
       return savedPosition
-    } else {
-      return { top: 0, behavior: 'smooth' }
     }
+    return { top: 0, behavior: 'smooth' }
   }
 })
 
@@ -107,6 +160,11 @@ router.beforeEach((to, from, next) => {
   } else {
     next()
   }
+})
+
+router.afterEach((to) => {
+  const title = to.meta?.title
+  document.title = title ? `${title} - Orange` : 'Orange'
 })
 
 export default router

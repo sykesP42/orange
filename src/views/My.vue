@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="my-page">
     <div class="page-header">
       <h1>我的</h1>
@@ -49,6 +49,7 @@
         <AvatarCropper
           v-model:visible="cropDialogVisible"
           :image-file="selectedImageFile"
+          :uploadAPI="uploadAvatarAPI"
           @success="handleAvatarUploadSuccess"
         />
 
@@ -363,7 +364,7 @@ import { useRouter } from 'vue-router'
 import { useNotification } from '../stores/notification'
 import { useUserStore } from '../stores/user'
 import { useConfirm } from '../utils/confirm'
-import { getUserProfileAPI, updateUserProfileAPI, updatePasswordAPI, uploadAvatarAPI, getMyBloggersAPI, categoryListAPI, getTeamsAPI, updateMyTeamAPI } from '../api'
+import { getUserProfileAPI, updateUserProfileAPI, updatePasswordAPI, uploadAvatarAPI, bloggerMyAPI, categoryListAPI, getTeamsAPI, updateMyTeamAPI } from '../api'
 import AvatarCropper from '../components/AvatarCropper.vue'
 
 const router = useRouter()
@@ -630,7 +631,7 @@ const loadBloggers = async () => {
   bloggersLoading.value = true
   isRefreshing.value = true
   try {
-    const res = await getMyBloggersAPI()
+    const res = await bloggerMyAPI()
     if (res.code === 200) {
       // API 返回的是 { list, total, page, pageSize } 对象
       bloggers.value = res.data.list || []
@@ -1027,7 +1028,7 @@ onMounted(() => {
   width: 100%;
   padding: 12px 16px 12px 48px;
   background: #fff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   font-size: 14px;
   color: #1a1a1a;
@@ -1049,7 +1050,7 @@ onMounted(() => {
 .filter-select {
   padding: 10px 16px;
   background: #fff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
   color: #1a1a1a;
@@ -1064,8 +1065,8 @@ onMounted(() => {
 
 .clear-btn {
   padding: 10px 20px;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
   color: #666;
@@ -1074,7 +1075,7 @@ onMounted(() => {
 }
 
 .clear-btn:hover {
-  background: #e5e7eb;
+  background: var(--border-color);
 }
 
 .blogger-list {
@@ -1099,7 +1100,7 @@ onMounted(() => {
 }
 
 .spinner {
-  border: 3px solid #f3f3f3;
+  border: 3px solid var(--border-light);
   border-top: 3px solid #ff6b35;
   border-radius: 50%;
   width: 40px;
@@ -1131,7 +1132,7 @@ onMounted(() => {
 .blogger-card {
   background: #fff;
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -1242,8 +1243,8 @@ onMounted(() => {
 
 .tag {
   padding: 4px 10px;
-  background: #f3f4f6;
-  color: #4b5563;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
   border-radius: 6px;
   font-size: 12px;
 }
@@ -1268,12 +1269,12 @@ onMounted(() => {
 }
 
 .contact-value.empty {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .card-footer {
   padding: 12px 16px;
-  background: #f9fafb;
+  background: var(--bg-card-hover);
   font-size: 12px;
   color: #999;
 }
@@ -1719,7 +1720,7 @@ html.dark .modal {
 }
 
 .btn-danger {
-  background: #ef4444;
+  background: var(--danger);
   color: white;
 }
 

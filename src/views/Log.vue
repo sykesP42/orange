@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="log-page">
     <div class="page-header">
       <div class="header-content">
@@ -95,7 +95,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { getOperationLog, userListAPI } from '../api'
+import { getOperationLog, getPublicUsersAPI, deleteLogAPI } from '../api'
 
 const logs = ref([])
 const users = ref([])
@@ -140,7 +140,7 @@ const loadLogs = async () => {
 
 const loadUsers = async () => {
   try {
-    const res = await userListAPI()
+    const res = await getPublicUsersAPI()
     if (res.code === 200) {
       users.value = (res.data || []).map(u => u.real_name || u.username)
     }
@@ -220,17 +220,8 @@ const deleteLog = async () => {
   if (!logToDelete.value) return
   
   try {
-    const res = await fetch('/api/admin/log/' + logToDelete.value.id, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': 'Bearer ' + localStorage.getItem('token'),
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    const data = await res.json()
+    const data = await deleteLogAPI(logToDelete.value.id)
     if (data.code === 200) {
-      // 重新加载日志
       loadLogs()
       showDeleteConfirm.value = false
       logToDelete.value = null
@@ -404,7 +395,7 @@ onMounted(() => {
   border: none;
   border-radius: 8px;
   background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  color: var(--danger);
   font-size: 20px;
   cursor: pointer;
   transition: all 0.2s;
@@ -523,13 +514,13 @@ onMounted(() => {
 }
 
 .confirm-btn {
-  background: #ef4444;
+  background: var(--danger);
   color: white;
-  border-color: #ef4444;
+  border-color: var(--danger);
 }
 
 .confirm-btn:hover {
-  background: #dc2626;
+  background: var(--danger);
 }
 
 @media (max-width: 640px) {

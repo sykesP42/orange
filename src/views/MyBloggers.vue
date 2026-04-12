@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="my-bloggers-page">
     <div class="page-header">
       <h1>我的博主</h1>
@@ -293,7 +293,7 @@ onMounted(() => {
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #f3f3f3;
+  border: 3px solid var(--border-light);
   border-top: 3px solid #667eea;
   border-radius: 50%;
   animation: spin 1s linear infinite;

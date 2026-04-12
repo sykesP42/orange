@@ -1,0 +1,445 @@
+{
+  "app": {
+    "name": "Orange",
+    "subtitle": "v1.0.0",
+    "loading": "Loading...",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
+    "noData": "No data available",
+    "refresh": "Refresh",
+    "clear": "Clear",
+    "all": "All",
+    "selected": "Selected",
+    "actions": "Actions",
+    "more": "More",
+    "viewMode": {
+      "card": "Card",
+      "list": "List",
+      "kanban": "Kanban"
+    },
+    "status": {
+      "all": "All Statuses",
+      "initialContact": "Initial Contact",
+      "negotiating": "Negotiating",
+      "cooperated": "Cooperating",
+      "rejected": "Rejected",
+      "paused": "Paused",
+      "invalid": "Invalid"
+    },
+    "common": {
+      "copy": "Copy",
+      "copied": "Copied!",
+      "copyFailed": "Copy failed",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "justNow": "Just now",
+      "minutesAgo": "{n} min ago",
+      "hoursAgo": "{n} hr ago",
+      "daysAgo": "{n} days ago"
+    }
+  },
+  "nav": {
+    "home": "Home",
+    "addBlogger": "Add Blogger",
+    "calendar": "Calendar",
+    "workflow": "Workflow",
+    "team": "Team",
+    "invalidBloggers": "Invalid Bloggers",
+    "my": "Profile",
+    "admin": "Admin",
+    "statistics": "Statistics",
+    "logout": "Logout"
+  },
+  "login": {
+    "title": "Welcome Back",
+    "username": "Username",
+    "password": "Password",
+    "loginBtn": "Sign In",
+    "loggingIn": "Signing in...",
+    "noAccount": "No account?",
+    "registerLink": "Sign up now",
+    "hasAccount": "Already have account?",
+    "loginLink": "Sign in",
+    "forgotPassword": "Forgot password?",
+    "registerTitle": "Create Account",
+    "realName": "Full Name",
+    "confirmPassword": "Confirm Password",
+    "registerBtn": "Sign Up",
+    "registering": "Signing up...",
+    "forgotTitle": "Reset Password",
+    "resetBtn": "Reset Password",
+    "resetting": "Resetting...",
+    "commandPaletteHint": "Press Ctrl+K to open command palette",
+    "shortcutHint": "Press ? for shortcuts",
+    "loginRequired": "Please log in to use command palette"
+  },
+  "home": {
+    "title": "Blogger Management",
+    "announcement": "Announcement",
+    "statsDashboard": "Statistics",
+    "totalBloggers": "Total Bloggers",
+    "activeCooperation": "Active Cooperation",
+    "pendingFollowup": "Pending Follow-up",
+    "pendingProcess": "Pending Process",
+    "todayNew": "Today New",
+    "weekGrowth": "Weekly Growth",
+    "cooperationRate": "Cooperation Rate",
+    "quickActions": "Quick Actions",
+    "addBloggerQuick": "Add Blogger",
+    "viewInvalid": "View Invalid",
+    "exportData": "Export Data",
+    "importData": "Import Data",
+    "openKanban": "Open Kanban",
+    "openWorkflow": "Workflow",
+    "openCalendar": "Calendar View",
+    "recentActivity": "Recent Activity",
+    "activityEmpty": "No recent activity",
+    "bloggersInDb": "Bloggers in database",
+    "filter": {
+      "title": "Filter",
+      "keyword": "Search by nickname/platform/tag...",
+      "category": "Category",
+      "allCategories": "All Categories",
+      "status": "Status",
+      "allStatuses": "All Statuses",
+      "platform": "Platform",
+      "allPlatforms": "All Platforms",
+      "sortBy": "Sort By",
+      "sortDefault": "Default",
+      "sortNameAsc": "Name A→Z",
+      "sortNameDesc": "Name Z→A",
+      "sortTimeDesc": "Newest First",
+      "sortTimeAsc": "Oldest First",
+      "reset": "Reset",
+      "tagCloud": "Tag Cloud",
+      "recommended": "AI Recommended",
+      "cloudView": "Cloud",
+      "listView": "List",
+      "empty": "No matching bloggers found"
+    },
+    "batchActions": {
+      "selectedCount": "{count} blogger(s) selected",
+      "selectNone": "Deselect All",
+      "selectAll": "Select All",
+      "selectedAll": "All selected",
+      "batchExport": "Batch Export",
+      "batchTag": "Batch Tag",
+      "batchStatus": "Batch Status Change",
+      "batchDelete": "Batch Delete",
+      "escToClear": "Press Esc to clear selection"
+    },
+    "bloggerCard": {
+      "contact": "Contact",
+      "wechat": "WeChat",
+      "platform": "Platform",
+      "fans": "Fans",
+      "tags": "Tags",
+      "lastContact": "Last Contact",
+      "owner": "Owner",
+      "createdAt": "Created At",
+      "viewDetail": "View Details",
+      "editInfo": "Edit Info",
+      "followup": "Add Follow-up",
+      "startCoop": "Start Cooperation",
+      "transfer": "Transfer",
+      "invalidate": "Mark Invalid",
+      "copyContact": "Copy Contact",
+      "copyWechat": "Copy WeChat ID"
+    },
+    "emptyState": {
+      "icon": "📭",
+      "title": "No bloggers yet",
+      "desc": "Click below to add your first blogger",
+      "addFirst": "Add Your First Blogger"
+    }
+  },
+  "detail": {
+    "backToHome": "Back to Home",
+    "editInfo": "Edit Info",
+    "deleteBlogger": "Delete Blogger",
+    "basicInfo": "Basic Information",
+    "nickname": "Nickname",
+    "platform": "Platform",
+    "account": "Account",
+    "contact": "Contact",
+    "wechat": "WeChat",
+    "phone": "Phone",
+    "email": "Email",
+    "customContact": "Custom Contact",
+    "description": "Description",
+    "category": "Category",
+    "status": "Status",
+    "tags": "Tags",
+    "fansCount": "Fans Count",
+    "owner": "Owner",
+    "createTime": "Created At",
+    "followupRecord": "Follow-up Records",
+    "addFollowup": "Add Follow-up",
+    "followupContent": "Content",
+    "followupType": "Type",
+    "followupTypes": {
+      "followup": "Follow-up",
+      "phoneCall": "Phone Call",
+      "meeting": "Meeting",
+      "email": "Email",
+      "other": "Other"
+    },
+    "saveFollowup": "Save Follow-up",
+    "editFollowup": "Edit Follow-up",
+    "deleteFollowup": "Delete Follow-up",
+    "noFollowups": "No follow-up records yet",
+    "cooperationHistory": "Cooperation History",
+    "addCooperation": "Add Cooperation",
+    "cooperationType": "Cooperation Type",
+    "cooperationStatus": "Cooperation Status",
+    "cooperationAmount": "Amount",
+    "cooperationRemark": "Remark",
+    "saveCooperation": "Save Cooperation",
+    "editCooperation": "Edit Cooperation",
+    "deleteCooperation": "Delete Cooperation",
+    "noCooperations": "No cooperation records yet",
+    "similarBloggers": "Similar Bloggers",
+    "operationLog": "Operation Log",
+    "transferOwner": "Transfer Ownership",
+    "selectNewOwner": "Select new owner",
+    "confirmTransfer": "Confirm Transfer",
+    "confirmDelete": "Are you sure you want to delete this blogger?",
+    "deleteWarning": "This action cannot be undone!"
+  },
+  "admin": {
+    "title": "System Admin",
+    "categories": "Categories",
+    "products": "Products",
+    "dataExport": "Data Export",
+    "teamManagement": "Team Management",
+    "userManagement": "User Management",
+    "operationLog": "Operation Log",
+    "backupRestore": "Backup & Restore",
+    "systemSettings": "System Settings",
+    "exportFormat": "Export Format",
+    "csv": "CSV",
+    "json": "JSON",
+    "xlsx": "XLSX Excel",
+    "selectFields": "Select export fields",
+    "exportBtn": "Start Export",
+    "exporting": "Exporting...",
+    "exportProgress": "Export Progress",
+    "exportHistory": "Export History",
+    "noHistory": "No export history",
+    "fileSize": "File Size",
+    "teamName": "Team Name",
+    "createTeam": "Create Team",
+    "joinTeam": "Join Team",
+    "noTeam": "You haven't joined any team yet",
+    "members": "Members",
+    "roleAdmin": "Admin",
+    "roleMember": "Member",
+    "setAdmin": "Set as Admin",
+    "removeAdmin": "Remove Admin",
+    "deactivateUser": "Deactivate User",
+    "deleteUser": "Delete User",
+    "pendingUsers": "Pending Users",
+    "approve": "Approve",
+    "reject": "Reject",
+    "snapshot": "Snapshot",
+    "createSnapshot": "Create Snapshot",
+    "restoreSnapshot": "Restore Snapshot",
+    "downloadSnapshot": "Download Snapshot",
+    "clearData": "Clear Data"
+  },
+  "calendar": {
+    "title": "Calendar",
+    "today": "Today",
+    "monthView": "Month View",
+    "weekView": "Week View",
+    "prevMonth": "Previous Month",
+    "nextMonth": "Next Month",
+    "addEvent": "New Event",
+    "eventTitle": "Title",
+    "eventDate": "Date",
+    "eventType": "Type",
+    "eventTypes": {
+      "followup": "Follow-up Reminder",
+      "cooperationStart": "Cooperation Start",
+      "cooperationEnd": "Cooperation End",
+      "custom": "Custom"
+    },
+    "eventRemark": "Remark",
+    "saveEvent": "Save",
+    "cancelEvent": "Cancel",
+    "noEvents": "No events for today",
+    "upcomingEvents": "Upcoming Events",
+    "urgent": "Urgent",
+    "warning": "Warning",
+    "normal": "Normal"
+  },
+  "workflow": {
+    "title": "Workflow",
+    "kanban": "Kanban View",
+    "dragTip": "Drag blogger cards between columns to change status"
+  },
+  "commandPalette": {
+    "title": "Command Palette",
+    "shortcut": "Ctrl+Alt+K",
+    "triggerText": "Search",
+    "placeholder": "Search commands, bloggers, or pages...",
+    "tabs": {
+      "commands": "Commands",
+      "bloggers": "Bloggers",
+      "pages": "Pages"
+    },
+    "recentSearches": "Recent Searches",
+    "clearHistory": "Clear",
+    "noCommandResults": "No matching commands found",
+    "noBloggerResults": "No matching bloggers found",
+    "noBloggerHint": "Try other keywords",
+    "noPageResults": "No matching pages found",
+    "footerHints": {
+      "navigate": "Navigate",
+      "select": "Select",
+      "close": "Close"
+    },
+    "commands": {
+      "add": {
+        "name": "Add Blogger",
+        "description": "Add new blogger information"
+      },
+      "home": {
+        "name": "Go Home",
+        "description": "View blogger list"
+      },
+      "my": {
+        "name": "My Bloggers",
+        "description": "View bloggers I manage"
+      },
+      "team": {
+        "name": "Team Collaboration",
+        "description": "Team blogger management"
+      },
+      "calendar": {
+        "name": "Calendar View",
+        "description": "View schedule"
+      },
+      "stats": {
+        "name": "Statistics",
+        "description": "View data statistics"
+      },
+      "admin": {
+        "name": "Admin Panel",
+        "description": "System management settings"
+      },
+      "dark": {
+        "name": "Toggle Theme",
+        "description": "Switch dark/light mode"
+      },
+      "quicknote": {
+        "name": "Quick Note",
+        "description": "Quickly take notes"
+      },
+      "export": {
+        "name": "Export Data",
+        "description": "Export blogger data"
+      },
+      "import": {
+        "name": "Import Data",
+        "description": "Batch import bloggers"
+      },
+      "invalid": {
+        "name": "Invalid Bloggers",
+        "description": "View invalid blogger library"
+      },
+      "forums": {
+        "name": "Forums",
+        "description": "View forum posts"
+      },
+      "analytics": {
+        "name": "Analytics",
+        "description": "Deep data analysis"
+      }
+    },
+    "pages": {
+      "home": "Home",
+      "add": "Add Blogger",
+      "my": "My Bloggers",
+      "team": "Team Collaboration",
+      "calendar": "Calendar",
+      "stats": "Statistics",
+      "invalid": "Invalid Bloggers",
+      "admin": "Admin Panel",
+      "chat": "Chat"
+    }
+  },
+  "pwa": {
+    "offline": {
+      "banner": "Currently offline — some features may be limited",
+      "tooltip": "Offline Mode"
+    },
+    "update": {
+      "text": "New version available",
+      "button": "Update Now"
+    },
+    "install": {
+      "text": "Install Orange to desktop",
+      "button": "Install"
+    }
+  },
+  "fab": {
+    "tooltip": "Quick Actions",
+    "closeTooltip": "Close",
+    "ariaLabel": "Quick Actions Menu",
+    "items": {
+      "add": "Add Blogger",
+      "search": "Command Palette",
+      "calendar": "Calendar",
+      "workflow": "Workflow",
+      "kanban": "Kanban"
+    }
+  },
+  "skeleton": {
+    "loading": "Loading data..."
+  },
+  "userMenu": {
+    "profile": "Profile",
+    "settings": "Settings",
+    "systemManage": "System Admin",
+    "logoutConfirm": "Are you sure you want to logout?"
+  },
+  "shortcuts": {
+    "title": "⌨️ Keyboard Shortcuts",
+    "groups": {
+      "navigation": "Navigation",
+      "actions": "Actions",
+      "general": "General"
+    },
+    "items": {
+      "commandPalette": "Command Palette",
+      "home": "Home",
+      "addBlogger": "Add Blogger",
+      "profile": "Profile",
+      "myBloggers": "My Bloggers",
+      "teamCenter": "Team Center",
+      "forums": "Forums",
+      "chat": "Chat",
+      "statistics": "Statistics",
+      "admin": "Admin Panel",
+      "quickNote": "Quick Note",
+      "toggleTheme": "Toggle Theme",
+      "help": "Shortcut Help",
+      "search": "Search",
+      "closeDialog": "Close Dialog"
+    }
+  }
+}
