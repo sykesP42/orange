@@ -76,41 +76,39 @@ type CoopStats struct {
 }
 
 func (h *AnalyticsHandler) GetOverview(c *gin.Context) {
-	_, ok := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
 		return
 	}
 
-	usernameVal, _ := c.Get("username")
-	username, _ := usernameVal.(string)
-
 	var overview BloggerOverview
 
-	database.DB.QueryRow(`SELECT COUNT(*) FROM blogger WHERE user_name = ? AND is_deleted = 0`, username).Scan(&overview.TotalBloggers)
+	database.DB.QueryRow(`SELECT COUNT(*) FROM blogger WHERE user_name = ? AND is_deleted = 0`, userID).Scan(&overview.TotalBloggers)
 
 	database.DB.QueryRow(`
 		SELECT COUNT(DISTINCT b.id) FROM blogger b
 		WHERE b.user_name = ? AND b.is_deleted = 0
-		AND b.status = '已合作'`, username).Scan(&overview.ActiveBloggers)
+		AND b.status = '已合作'`, userID).Scan(&overview.ActiveBloggers)
 
 	database.DB.QueryRow(`
 		SELECT COUNT(*) FROM cooperation c
 		INNER JOIN blogger b ON c.blogger_id = b.id
-		WHERE b.user_name = ?`, username).Scan(&overview.CooperationCount)
+		WHERE b.user_name = ? AND c.is_deleted = 0`, userID).Scan(&overview.CooperationCount)
 
 	database.DB.QueryRow(`
 		SELECT COALESCE(SUM(follower_count), 0) FROM blogger
-		WHERE user_name = ? AND is_deleted = 0`, username).Scan(&overview.TotalExposure)
+		WHERE user_name = ? AND is_deleted = 0`, userID).Scan(&overview.TotalExposure)
 
 	database.DB.QueryRow(`
 		SELECT COALESCE(AVG(follower_count), 0) FROM blogger
-		WHERE user_name = ? AND is_deleted = 0`, username).Scan(&overview.AvgFollowerCount)
+		WHERE user_name = ? AND is_deleted = 0`, userID).Scan(&overview.AvgFollowerCount)
 
 	categoryRows, _ := database.DB.Query(`
 		SELECT COALESCE(category, '未分类') as cat, COUNT(*) as cnt
 		FROM blogger WHERE user_name = ? AND is_deleted = 0
-		GROUP BY cat ORDER BY cnt DESC LIMIT 5`, username)
+		GROUP BY cat ORDER BY cnt DESC LIMIT 5`, userID)
 	var catTotal int
 	for categoryRows.Next() {
 		var cat string
@@ -132,7 +130,7 @@ func (h *AnalyticsHandler) GetOverview(c *gin.Context) {
 	platformRows, _ := database.DB.Query(`
 		SELECT COALESCE(platform, '未知') as plt, COUNT(*) as cnt
 		FROM blogger WHERE user_name = ? AND is_deleted = 0
-		GROUP BY plt ORDER BY cnt DESC LIMIT 5`, username)
+		GROUP BY plt ORDER BY cnt DESC LIMIT 5`, userID)
 	var pltTotal int
 	for platformRows.Next() {
 		var plt string
@@ -160,13 +158,13 @@ func (h *AnalyticsHandler) GetOverview(c *gin.Context) {
 		database.DB.QueryRow(`
 			SELECT COUNT(*) FROM blogger
 			WHERE user_name = ? AND is_deleted = 0
-			AND strftime('%Y-%m', create_time) = ?`, username, monthStr).Scan(&added)
+			AND strftime('%Y-%m', create_time) = ?`, userID, monthStr).Scan(&added)
 
 		database.DB.QueryRow(`
 			SELECT COUNT(*) FROM cooperation c
 			INNER JOIN blogger b ON c.blogger_id = b.id
-			WHERE b.user_name = ?
-			AND strftime('%Y-%m', c.create_time) = ?`, username, monthStr).Scan(&cooperated)
+			WHERE b.user_name = ? AND c.is_deleted = 0
+			AND strftime('%Y-%m', c.create_time) = ?`, userID, monthStr).Scan(&cooperated)
 
 		overview.MonthlyTrend = append(overview.MonthlyTrend, MonthlyStat{
 			Month:      monthStr,
@@ -178,7 +176,7 @@ func (h *AnalyticsHandler) GetOverview(c *gin.Context) {
 	statusRows, _ := database.DB.Query(`
 		SELECT COALESCE(status, '未知') as st, COUNT(*) as cnt
 		FROM blogger WHERE user_name = ? AND is_deleted = 0
-		GROUP BY st ORDER BY cnt DESC`, username)
+		GROUP BY st ORDER BY cnt DESC`, userID)
 	var stTotal int
 	for statusRows.Next() {
 		var st string
@@ -201,7 +199,8 @@ func (h *AnalyticsHandler) GetOverview(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetBloggerAnalytics(c *gin.Context) {
-	_, ok := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
 		return
@@ -213,12 +212,16 @@ func (h *AnalyticsHandler) GetBloggerAnalytics(c *gin.Context) {
 		return
 	}
 
-	usernameVal, _ := c.Get("username")
-	username, _ := usernameVal.(string)
+	var realName string
+	err := database.DB.QueryRow(`SELECT real_name FROM users WHERE id = ?`, userID).Scan(&realName)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "无权访问"})
+		return
+	}
 
 	var ownerName string
 	database.DB.QueryRow(`SELECT user_name FROM blogger WHERE id = ?`, bloggerID).Scan(&ownerName)
-	if ownerName != username {
+	if ownerName != realName {
 		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "无权访问此博主"})
 		return
 	}

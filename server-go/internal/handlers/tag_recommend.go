@@ -66,9 +66,9 @@ func (h *TagRecommendationHandler) GetRecommendations(c *gin.Context) {
 	if len(conditions) > 0 {
 		query := `
 			SELECT bt.tag_id, t.name, t.color, COUNT(*) as cnt
-			FROM blogger_tags bt
+			FROM blogger_tag_relations bt
 			JOIN blogger b ON bt.blogger_id = b.id
-			JOIN tags t ON bt.tag_id = t.id
+			JOIN blogger_tags t ON bt.tag_id = t.id
 			WHERE b.is_deleted = 0 AND b.is_invalid = 0
 		`
 
@@ -99,8 +99,8 @@ func (h *TagRecommendationHandler) GetRecommendations(c *gin.Context) {
 		for keyword, weight := range descriptionKeywords {
 			query := `
 				SELECT t.id, t.name, t.color, COUNT(*) as cnt
-				FROM tags t
-				JOIN blogger_tags bt ON t.id = bt.tag_id
+				FROM blogger_tags t
+				JOIN blogger_tag_relations bt ON t.id = bt.tag_id
 				JOIN blogger b ON bt.blogger_id = b.id
 				WHERE b.is_deleted = 0 AND (
 					LOWER(t.name) LIKE ? OR
@@ -146,7 +146,7 @@ func (h *TagRecommendationHandler) GetRecommendations(c *gin.Context) {
 
 	var existingTagIDs []int
 	if bloggerIDStr != "" {
-		rows, _ := h.DB.Query("SELECT tag_id FROM blogger_tags WHERE blogger_id = ?", bloggerIDStr)
+		rows, _ := h.DB.Query("SELECT tag_id FROM blogger_tag_relations WHERE blogger_id = ?", bloggerIDStr)
 		if rows != nil {
 			defer rows.Close()
 			for rows.Next() {

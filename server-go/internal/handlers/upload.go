@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,32 +20,6 @@ type UploadHandler struct {
 
 func NewUploadHandler(cfg *config.Config) *UploadHandler {
 	return &UploadHandler{Cfg: cfg}
-}
-
-var magicSignatures = map[string][]byte{
-	".jpg":  {0xFF, 0xD8, 0xFF},
-	".jpeg": {0xFF, 0xD8, 0xFF},
-	".png":  {0x89, 0x50, 0x4E, 0x47},
-	".gif":  {0x47, 0x49, 0x46},
-	".webp": {0x52, 0x49, 0x46, 0x46},
-	".pdf":  {0x25, 0x50, 0x44, 0x46},
-}
-
-var docSignatures = map[string][]byte{
-	".doc":  {0xD0, 0xCF, 0x11, 0xE0},
-	".docx": {0x50, 0x4B, 0x03, 0x04},
-	".xls":  {0xD0, 0xCF, 0x11, 0xE0},
-	".xlsx": {0x50, 0x4B, 0x03, 0x04},
-}
-
-func validateFileMagic(header []byte, ext string) bool {
-	if sig, ok := magicSignatures[ext]; ok {
-		return bytes.HasPrefix(header, sig)
-	}
-	if sig, ok := docSignatures[ext]; ok {
-		return bytes.HasPrefix(header, sig)
-	}
-	return true
 }
 
 func (h *UploadHandler) UploadFile(c *gin.Context) {
@@ -77,19 +50,6 @@ func (h *UploadHandler) UploadFile(c *gin.Context) {
 
 	if !allowedExts[ext] {
 		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "File type not allowed"})
-		return
-	}
-
-	src, err := file.Open()
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to open file"})
-		return
-	}
-	buf := make([]byte, 8)
-	n, _ := src.Read(buf)
-	src.Close()
-	if n > 0 && !validateFileMagic(buf[:n], ext) {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "File content does not match extension"})
 		return
 	}
 
@@ -140,19 +100,6 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 
 	if !allowedExts[ext] {
 		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "Only image files are allowed"})
-		return
-	}
-
-	imgSrc, err := file.Open()
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "Failed to open file"})
-		return
-	}
-	buf := make([]byte, 8)
-	n, _ := imgSrc.Read(buf)
-	imgSrc.Close()
-	if n > 0 && !validateFileMagic(buf[:n], ext) {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "Image content does not match extension"})
 		return
 	}
 

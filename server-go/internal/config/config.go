@@ -13,6 +13,9 @@ type Config struct {
 	JWTSecret     string
 	UploadPath    string
 	MaxUploadSize int64
+	RedisHost     string
+	RedisPort     int
+	RedisPassword string
 }
 
 func Load() *Config {
@@ -24,6 +27,9 @@ func Load() *Config {
 		JWTSecret:     getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 		UploadPath:    getEnv("UPLOAD_PATH", "./uploads"),
 		MaxUploadSize: getEnvAsInt64("MAX_UPLOAD_SIZE", 10*1024*1024),
+		RedisHost:     getEnv("REDIS_HOST", ""),
+		RedisPort:     getEnvAsInt("REDIS_PORT", 6379),
+		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 	}
 	if cfg.JWTSecret == "your-secret-key-change-in-production" {
 		log.Printf("⚠️ 警告：正在使用默认 JWT 密钥，请在生产环境中设置 JWT_SECRET 环境变量！")
@@ -61,6 +67,15 @@ func loadEnvFile() {
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvAsInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
 	}
 	return defaultValue
 }

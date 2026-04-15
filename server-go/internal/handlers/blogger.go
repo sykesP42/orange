@@ -15,11 +15,16 @@ import (
 )
 
 type BloggerHandler struct {
-	DB *sql.DB
+	DB              *sql.DB
+	WorkflowHandler *WorkflowHandler
 }
 
 func NewBloggerHandler(db *sql.DB) *BloggerHandler {
 	return &BloggerHandler{DB: db}
+}
+
+func (h *BloggerHandler) SetWorkflowHandler(wh *WorkflowHandler) {
+	h.WorkflowHandler = wh
 }
 
 func (h *BloggerHandler) GetBloggers(c *gin.Context) {
@@ -264,7 +269,7 @@ func (h *BloggerHandler) GetExpiringBloggers(c *gin.Context) {
 	userName, _ := c.Get("username")
 	now := time.Now()
 
-	rows, err := h.DB.Query(`SELECT b.id, b.nickname, b.create_time FROM blogger b 
+	rows, err := h.DB.Query(`SELECT b.id, b.nickname, b.avatar, b.create_time FROM blogger b 
 		WHERE b.is_deleted = 0 AND b.is_invalid = 0 
 		AND b.contact = '' AND b.wechat = '' AND b.custom_contact = ''
 		AND b.user_name = ?`, userName)
@@ -278,20 +283,24 @@ func (h *BloggerHandler) GetExpiringBloggers(c *gin.Context) {
 	for rows.Next() {
 		var id int
 		var nickname, createTime string
-		rows.Scan(&id, &nickname, &createTime)
+		var avatar sql.NullString
+		rows.Scan(&id, &nickname, &avatar, &createTime)
 
 		ct, _ := time.Parse(time.RFC3339, createTime)
 		if ct.IsZero() {
 			ct, _ = time.Parse("2006-01-02 15:04:05", createTime)
 		}
-		diffTime := ct.Add(15*24*time.Hour).Unix() - now.Unix()
+		expireDate := ct.Add(15 * 24 * time.Hour)
+		diffTime := expireDate.Unix() - now.Unix()
 		daysLeft := int(diffTime / (24 * 60 * 60))
 
 		if daysLeft > 0 && daysLeft <= 15 {
 			bloggers = append(bloggers, map[string]interface{}{
 				"id":          id,
 				"nickname":    nickname,
+				"avatar":      avatar.String,
 				"days_left":   daysLeft,
+				"expire_date": expireDate.Format("2006-01-02"),
 				"create_time": createTime,
 			})
 		}
@@ -586,6 +595,10 @@ func (h *BloggerHandler) UpdateBlogger(c *gin.Context) {
 					"博主【"+b.Nickname+"】的状态已变更为【"+req.Status+"】，请及时处理。",
 					"important", id, realName, time.Now().Format(time.RFC3339))
 			}
+		}
+
+		if h.WorkflowHandler != nil {
+			go h.WorkflowHandler.TriggerWorkflowInternal("status_change", req.Status, id, "blogger", realName)
 		}
 	}
 
@@ -1023,6 +1036,10 @@ func (h *BloggerHandler) BatchUpdateStatus(c *gin.Context) {
 					"博主【"+nickname+"】的状态已变更为【"+req.Status+"】，请及时处理。",
 					"important", id, realName, now)
 			}
+
+			if h.WorkflowHandler != nil {
+				go h.WorkflowHandler.TriggerWorkflowInternal("status_change", req.Status, id, "blogger", realName)
+			}
 		}
 	}
 
@@ -1068,27 +1085,20 @@ func (h *BloggerHandler) BatchUpdateTags(c *gin.Context) {
 		if req.Action == "add" && len(req.Tags) > 0 {
 			for _, tagID := range req.Tags {
 				var exists int
-				h.DB.QueryRow("SELECT COUNT(*) FROM blogger_tags WHERE blogger_id = ? AND tag_id = ?", bloggerID, tagID).Scan(&exists)
+				h.DB.QueryRow("SELECT COUNT(*) FROM blogger_tag_relations WHERE blogger_id = ? AND tag_id = ?", bloggerID, tagID).Scan(&exists)
 				if exists == 0 {
-					h.DB.Exec("INSERT INTO blogger_tags (blogger_id, tag_id, create_time) VALUES (?, ?, ?)",
+					h.DB.Exec("INSERT INTO blogger_tag_relations (blogger_id, tag_id, create_time) VALUES (?, ?, ?)",
 						bloggerID, tagID, now)
 				}
 			}
 			successCount++
 		} else if req.Action == "remove" && len(req.Tags) > 0 {
-			placeholders := strings.Repeat("?,", len(req.Tags))
-			placeholders = placeholders[:len(placeholders)-1]
-			args := make([]interface{}, 0, len(req.Tags)+1)
-			args = append(args, bloggerID)
-			for _, tagID := range req.Tags {
-				args = append(args, tagID)
-			}
-			h.DB.Exec("DELETE FROM blogger_tags WHERE blogger_id = ? AND tag_id IN ("+placeholders+")", args...)
+			h.DB.Exec("DELETE FROM blogger_tag_relations WHERE blogger_id = ? AND tag_id IN ("+intsToString(req.Tags)+")", bloggerID)
 			successCount++
 		} else if req.Action == "replace" {
-			h.DB.Exec("DELETE FROM blogger_tags WHERE blogger_id = ?", bloggerID)
+			h.DB.Exec("DELETE FROM blogger_tag_relations WHERE blogger_id = ?", bloggerID)
 			for _, tagID := range req.Tags {
-				h.DB.Exec("INSERT INTO blogger_tags (blogger_id, tag_id, create_time) VALUES (?, ?, ?)",
+				h.DB.Exec("INSERT INTO blogger_tag_relations (blogger_id, tag_id, create_time) VALUES (?, ?, ?)",
 					bloggerID, tagID, now)
 			}
 			successCount++
@@ -1162,6 +1172,17 @@ func (h *BloggerHandler) BatchDelete(c *gin.Context) {
 			"total_count":   len(req.IDs),
 		},
 	})
+}
+
+func intsToString(nums []int) string {
+	result := ""
+	for i, n := range nums {
+		if i > 0 {
+			result += ","
+		}
+		result += strconv.Itoa(n)
+	}
+	return result
 }
 
 func (h *BloggerHandler) SubmitEvaluation(c *gin.Context) {

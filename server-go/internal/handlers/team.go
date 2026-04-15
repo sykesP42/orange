@@ -14,7 +14,10 @@ import (
 )
 
 type TeamHandler struct {
-	DB *sql.DB
+	DB  *sql.DB
+	Hub interface {
+		SendToUser(userID int, payload []byte)
+	}
 }
 
 func NewTeamHandler(db *sql.DB) *TeamHandler {
@@ -53,10 +56,17 @@ func (h *TeamHandler) GetTeams(c *gin.Context) {
 }
 
 func (h *TeamHandler) CreateTeam(c *gin.Context) {
-	roleVal, _ := c.Get("role")
-	role, _ := roleVal.(string)
-	if role != "admin" {
-		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
 		return
 	}
 
@@ -82,25 +92,64 @@ func (h *TeamHandler) CreateTeam(c *gin.Context) {
 		return
 	}
 
+	h.DB.QueryRow("SELECT COUNT(*) FROM team_requests WHERE name = ? AND status = 'pending'", req.Name).Scan(&count)
+	if count > 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "该团队名称已在申请中，请等待审核"})
+		return
+	}
+
 	color := req.Color
 	if color == "" {
 		color = "#3b82f6"
 	}
 
-	result, _ := h.DB.Exec(`INSERT INTO teams (name, color, description, logo, bg_image, announcement, leader_id) 
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		req.Name, color, req.Description, req.Logo, req.BgImage, req.Announcement, req.LeaderID)
-	id, _ := result.LastInsertId()
-
-	adminRealNameVal, _ := c.Get("realName")
-	adminRealName, ok := adminRealNameVal.(string)
-	if !ok {
-		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+	_, err := h.DB.Exec(`INSERT INTO team_requests (name, color, description, logo, bg_image, announcement, creator_id, creator_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		req.Name, color, req.Description, req.Logo, req.BgImage, req.Announcement, userID, realName)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "创建申请失败"})
 		return
 	}
-	database.AddLog("新增", "团队【"+req.Name+"】", adminRealName, "新增团队【"+req.Name+"】")
 
-	c.JSON(http.StatusOK, gin.H{"code": 200, "data": gin.H{"id": id, "name": req.Name, "color": color}})
+	now := time.Now().Format(time.RFC3339)
+	var adminUsers []struct {
+		ID       int
+		RealName string
+	}
+	rows, _ := h.DB.Query("SELECT id, real_name FROM users WHERE role = 'admin'")
+	for rows.Next() {
+		var u struct {
+			ID       int
+			RealName string
+		}
+		rows.Scan(&u.ID, &u.RealName)
+		adminUsers = append(adminUsers, u)
+	}
+	rows.Close()
+
+	for _, admin := range adminUsers {
+		h.DB.Exec(`INSERT INTO notifications (user_id, type, title, content, priority, from_user, create_time)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			admin.ID, "team_request", "📋 新的团队创建申请",
+			fmt.Sprintf("用户【%s】申请创建团队【%s】，请及时审核。", realName, req.Name),
+			"important", realName, now)
+
+		if h.Hub != nil {
+			payload, _ := json.Marshal(map[string]interface{}{
+				"type": "notification",
+				"data": map[string]interface{}{
+					"type":    "team_request",
+					"title":   "📋 新的团队创建申请",
+					"content": fmt.Sprintf("用户【%s】申请创建团队【%s】，请及时审核。", realName, req.Name),
+				},
+			})
+			Hub.SendToUser(admin.ID, payload)
+		}
+	}
+
+	database.AddLog("申请", "团队【"+req.Name+"】", realName, "提交团队创建申请【"+req.Name+"】")
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "团队创建申请已提交，请等待管理员审核"})
 }
 
 func (h *TeamHandler) UpdateTeam(c *gin.Context) {

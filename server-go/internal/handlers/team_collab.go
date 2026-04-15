@@ -29,16 +29,9 @@ type BloggerTransfer struct {
 }
 
 func (h *TeamCollabHandler) GetTeamMembers(c *gin.Context) {
-	userIDVal, _ := c.Get("userID")
-	userID, ok := userIDVal.(int)
-	if !ok {
-		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
-		return
-	}
-
-	var teamID sql.NullInt64
-	database.DB.QueryRow(`SELECT team_id FROM users WHERE id = ? AND status = 'active'`, userID).Scan(&teamID)
-	if !teamID.Valid || teamID.Int64 == 0 {
+	teamIDVal, _ := c.Get("teamID")
+	teamID, _ := teamIDVal.(int)
+	if teamID == 0 {
 		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "未加入团队"})
 		return
 	}
@@ -49,7 +42,7 @@ func (h *TeamCollabHandler) GetTeamMembers(c *gin.Context) {
 		INNER JOIN teams t ON u.team_id = t.id
 		WHERE u.team_id = ? AND u.status = 'active'
 		ORDER BY u.id ASC
-	`, teamID.Int64)
+	`, teamID)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "获取团队成员失败"})
 		return
@@ -211,10 +204,10 @@ func (h *TeamCollabHandler) HandleTransferRequest(c *gin.Context) {
 	}
 
 	if req.Action == "approve" {
-		var toUsername sql.NullString
-		database.DB.QueryRow(`SELECT username FROM users WHERE id = ?`, userID).Scan(&toUsername)
+		var fromUsername sql.NullString
+		database.DB.QueryRow(`SELECT username FROM users WHERE id = ?`, fromUserID).Scan(&fromUsername)
 
-		database.DB.Exec(`UPDATE blogger SET user_name = ? WHERE id = ?`, toUsername.String, bloggerID)
+		database.DB.Exec(`UPDATE blogger SET user_name = ? WHERE id = ?`, fromUsername.String, bloggerID)
 
 		database.DB.Exec(`UPDATE blogger_transfer_requests SET status = 'approved', handled_at = CURRENT_TIMESTAMP WHERE id = ?`, req.RequestID)
 

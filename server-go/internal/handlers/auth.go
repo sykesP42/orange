@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"server-go/internal/config"
 	"server-go/internal/database"
@@ -64,12 +65,27 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	id, _ := result.LastInsertId()
 
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"id":       id,
+		"username": req.Username,
+		"role":     "user",
+		"realName": realName,
+		"exp":      time.Now().Add(24 * time.Hour).Unix(),
+	})
+
+	tokenString, err := token.SignedString([]byte(h.Cfg.JWTSecret))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "生成token失败"})
+		return
+	}
+
 	database.AddLog("注册", realName, realName, "新用户【"+realName+"】注册")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"message": "注册成功，等待管理员审核",
 		"data": gin.H{
+			"token":     tokenString,
 			"id":        id,
 			"username":  req.Username,
 			"real_name": realName,
@@ -187,9 +203,9 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	var createTime, updateTime string
 
 	err := h.DB.QueryRow(`
-		SELECT id, username, real_name, role, avatar, email, phone, bio, status, team_id, create_time, update_time
+		SELECT id, username, password, real_name, role, avatar, email, phone, bio, status, team_id, create_time, update_time
 		FROM users WHERE id = ?`, userID).Scan(
-		&user.ID, &user.Username, &realName, &user.Role,
+		&user.ID, &user.Username, &user.Password, &realName, &user.Role,
 		&avatar, &email, &phone, &bio, &status, &teamID, &createTime, &updateTime,
 	)
 
@@ -595,6 +611,36 @@ func (h *AuthHandler) DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
 
+func (h *AuthHandler) DeactivateUser(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	if role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+		return
+	}
+
+	id, _ := strconv.Atoi(c.Param("id"))
+	var realName string
+	err := h.DB.QueryRow("SELECT real_name FROM users WHERE id = ?", id).Scan(&realName)
+
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "用户不存在"})
+		return
+	}
+
+	adminRealNameVal, _ := c.Get("realName")
+	adminRealName, ok := adminRealNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+
+	h.DB.Exec("UPDATE users SET status = 'inactive', update_time = CURRENT_TIMESTAMP WHERE id = ?", id)
+	database.AddLog("注销用户", realName, adminRealName, "注销用户【"+realName+"】")
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "已注销该用户"})
+}
+
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	roleVal, _ := c.Get("role")
 	role, _ := roleVal.(string)
@@ -646,6 +692,32 @@ func join(slice []string, sep string) string {
 	return result
 }
 
+func (h *AuthHandler) ReactivateUser(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	if role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+		return
+	}
+
+	id, _ := strconv.Atoi(c.Param("id"))
+	result, err := h.DB.Exec("UPDATE users SET is_deleted = 0, status = 'active', update_time = CURRENT_TIMESTAMP WHERE id = ? AND is_deleted = 1", id)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "恢复失败"})
+		return
+	}
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "用户不存在或未被删除"})
+		return
+	}
+
+	adminName, _ := c.Get("realName")
+	database.AddLog("恢复用户", "用户管理", adminName.(string), fmt.Sprintf("恢复用户ID=%d", id))
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "用户已恢复"})
+}
+
 func (h *AuthHandler) GetUserDetail(c *gin.Context) {
 	username := c.Param("username")
 
@@ -655,9 +727,9 @@ func (h *AuthHandler) GetUserDetail(c *gin.Context) {
 	var createTime, updateTime string
 
 	err := h.DB.QueryRow(`
-		SELECT id, username, real_name, role, avatar, email, phone, bio, status, team_id, create_time, update_time
+		SELECT id, username, password, real_name, role, avatar, email, phone, bio, status, team_id, create_time, update_time
 		FROM users WHERE username = ? AND is_deleted = 0`, username).Scan(
-		&user.ID, &user.Username, &realName, &user.Role,
+		&user.ID, &user.Username, &user.Password, &realName, &user.Role,
 		&avatar, &email, &phone, &bio, &status, &teamID, &createTime, &updateTime,
 	)
 

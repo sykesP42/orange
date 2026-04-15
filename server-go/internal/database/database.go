@@ -23,8 +23,8 @@ func Init(cfg *config.Config) error {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	DB.SetMaxOpenConns(10)
-	DB.SetMaxIdleConns(5)
+	DB.SetMaxOpenConns(100)
+	DB.SetMaxIdleConns(10)
 	DB.SetConnMaxLifetime(0)
 
 	if _, err = DB.Exec("PRAGMA journal_mode=WAL"); err != nil {
@@ -358,6 +358,17 @@ func createTables() error {
 			update_time DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(blogger_id, user_id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS workflow_rules (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			trigger_type TEXT NOT NULL,
+			trigger_value TEXT NOT NULL,
+			action_type TEXT NOT NULL,
+			action_config TEXT,
+			enabled INTEGER DEFAULT 1,
+			priority INTEGER DEFAULT 1,
+			create_time TEXT
+		)`,
 	}
 
 	for _, table := range tables {
@@ -368,6 +379,56 @@ func createTables() error {
 
 	migrations := []string{
 		`ALTER TABLE team_posts ADD COLUMN tags TEXT`,
+		`ALTER TABLE blogger ADD COLUMN follower_count INTEGER DEFAULT 0`,
+		`ALTER TABLE followup ADD COLUMN is_deleted INTEGER DEFAULT 0`,
+		`ALTER TABLE cooperation ADD COLUMN is_deleted INTEGER DEFAULT 0`,
+		`ALTER TABLE cooperation ADD COLUMN cooperation_fee REAL DEFAULT 0`,
+		`ALTER TABLE blogger ADD COLUMN next_follow_time TEXT`,
+		`ALTER TABLE followup ADD COLUMN next_follow_time TEXT`,
+		`ALTER TABLE notifications ADD COLUMN redirect_url TEXT`,
+		`ALTER TABLE blogger_transfer_requests ADD COLUMN handled_at TEXT`,
+		`CREATE TABLE IF NOT EXISTS team_requests (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			color TEXT DEFAULT '#3b82f6',
+			description TEXT,
+			logo TEXT,
+			bg_image TEXT,
+			announcement TEXT,
+			creator_id INTEGER NOT NULL,
+			creator_name TEXT NOT NULL,
+			status TEXT DEFAULT 'pending',
+			approve_id INTEGER,
+			approve_name TEXT,
+			approve_time TEXT,
+			approve_remark TEXT,
+			create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS team_tasks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			team_id INTEGER,
+			title TEXT,
+			content TEXT,
+			assignee_id INTEGER,
+			assigner_id INTEGER,
+			blogger_id INTEGER,
+			deadline TEXT,
+			status TEXT DEFAULT 'pending',
+			priority TEXT DEFAULT 'normal',
+			create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+			update_time DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS saved_filters (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			name TEXT NOT NULL,
+			filters TEXT,
+			is_default INTEGER DEFAULT 0,
+			create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`ALTER TABLE cooperation ADD COLUMN product_name TEXT`,
+		`ALTER TABLE cooperation ADD COLUMN start_time TEXT`,
+		`ALTER TABLE cooperation ADD COLUMN end_time TEXT`,
 	}
 	for _, m := range migrations {
 		DB.Exec(m)

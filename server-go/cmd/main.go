@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"server-go/internal/cache"
 	"server-go/internal/config"
 	"server-go/internal/database"
 	"server-go/internal/handlers"
@@ -17,15 +18,25 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	if cfg.RedisHost != "" {
+		cacheErr := cache.Init(&cache.CacheConfig{
+			Host:     cfg.RedisHost,
+			Port:     cfg.RedisPort,
+			Password: cfg.RedisPassword,
+		})
+		if cacheErr != nil {
+			log.Printf("⚠️ Redis initialization failed, running without cache: %v", cacheErr)
+		}
+	} else {
+		log.Println("[Cache] Redis not configured, running without cache")
+	}
+
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(middleware.RequestLogger())
 	r.Use(middleware.CORSMiddleware())
-	r.Use(middleware.RateLimitMiddleware())
-	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
-		SkipPaths: []string{"/health", "/api/ws"},
-	}))
 
 	r.Static("/uploads", cfg.UploadPath)
 
@@ -45,11 +56,13 @@ func main() {
 	filterHandler := handlers.NewFilterHandler(database.DB)
 	tagRecommendHandler := handlers.NewTagRecommendationHandler(database.DB)
 	workflowHandler := handlers.NewWorkflowHandler(database.DB)
+	bloggerHandler.SetWorkflowHandler(workflowHandler)
 
 	api := r.Group("/api")
 	{
 		api.POST("/login", authHandler.Login)
 		api.POST("/register", authHandler.Register)
+		api.GET("/ws", wsHandler.HandleWebSocket)
 
 		api.GET("/public/posts", forumHandler.GetPosts)
 		api.GET("/public/posts/:id", forumHandler.GetPost)
@@ -65,10 +78,7 @@ func main() {
 
 	authorized := api.Group("/")
 	authorized.Use(middleware.AuthMiddleware(cfg))
-	authorized.Use(middleware.CSRFMiddleware())
 	{
-		authorized.GET("/ws", wsHandler.HandleWebSocket)
-
 		authorized.GET("/user/profile", authHandler.GetProfile)
 		authorized.PUT("/user/profile", authHandler.UpdateProfile)
 		authorized.POST("/user/change-password", authHandler.ChangePassword)
@@ -184,6 +194,8 @@ func main() {
 		authorized.POST("/users/approve", authHandler.ApproveUser)
 		authorized.DELETE("/users/:id", authHandler.DeleteUser)
 		authorized.POST("/users/:id/reset-password", authHandler.ResetPassword)
+		authorized.POST("/users/:id/deactivate", authHandler.DeactivateUser)
+		authorized.POST("/users/:id/reactivate", authHandler.ReactivateUser)
 
 		authorized.GET("/teams", teamHandler.GetTeams)
 		authorized.GET("/team/:id", teamHandler.GetTeam)
@@ -251,6 +263,7 @@ func main() {
 		authorized.GET("/snapshots/file/:filename", miscHandler.DownloadSnapshot)
 		authorized.POST("/snapshots/file/:filename/restore", miscHandler.RestoreSnapshot)
 		authorized.POST("/backup", miscHandler.CreateBackup)
+		authorized.POST("/backup/restore", miscHandler.RestoreFromJSON)
 		authorized.POST("/clear", miscHandler.ClearData)
 
 		authorized.GET("/users/pending", adminHandler.GetPendingUsers)
@@ -280,6 +293,10 @@ func main() {
 		admin.POST("/blogger/delete", bloggerHandler.DeleteBlogger)
 		admin.POST("/purge", miscHandler.PurgeData)
 		admin.GET("/export", miscHandler.ExportData)
+		admin.GET("/teams/pending", adminHandler.GetPendingTeams)
+		admin.POST("/teams/approve", adminHandler.ApproveTeam)
+		admin.POST("/users/batch-approve", adminHandler.BatchApproveUsers)
+		admin.POST("/users/batch-reject", adminHandler.BatchRejectUsers)
 	}
 
 	r.GET("/health", func(c *gin.Context) {

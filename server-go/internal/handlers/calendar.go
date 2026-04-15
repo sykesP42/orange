@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
 	"time"
@@ -30,14 +29,12 @@ type CalendarEvent struct {
 }
 
 func (h *CalendarHandler) GetCalendarEvents(c *gin.Context) {
-	_, ok := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID, ok := userIDVal.(int)
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
 		return
 	}
-
-	usernameVal, _ := c.Get("username")
-	username, _ := usernameVal.(string)
 
 	startDate := c.Query("start")
 	endDate := c.Query("end")
@@ -58,7 +55,7 @@ func (h *CalendarHandler) GetCalendarEvents(c *gin.Context) {
 		AND b.next_follow_time IS NOT NULL AND b.next_follow_time != ''
 		AND b.next_follow_time >= ? AND b.next_follow_time <= ?
 		ORDER BY b.next_follow_time ASC
-	`, username, startDate, endDate)
+	`, userID, startDate, endDate)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -83,11 +80,11 @@ func (h *CalendarHandler) GetCalendarEvents(c *gin.Context) {
 		SELECT f.id, f.blogger_id, b.nickname, f.content, f.next_follow_time, f.create_time
 		FROM followup f
 		INNER JOIN blogger b ON f.blogger_id = b.id
-		WHERE b.user_name = ?
+		WHERE b.user_name = ? AND f.is_deleted = 0
 		AND f.next_follow_time IS NOT NULL AND f.next_follow_time != ''
 		AND f.next_follow_time >= ? AND f.next_follow_time <= ?
 		ORDER BY f.next_follow_time ASC
-	`, username, startDate, endDate)
+	`, userID, startDate, endDate)
 	if err == nil {
 		defer rows2.Close()
 		for rows2.Next() {
@@ -108,22 +105,23 @@ func (h *CalendarHandler) GetCalendarEvents(c *gin.Context) {
 	}
 
 	rows3, err := database.DB.Query(`
-		SELECT c.id, c.blogger_id, b.nickname, c.product, c.amount, c.status, c.date
+		SELECT c.id, c.blogger_id, b.nickname, c.product_name, c.cooperation_fee, c.status, c.start_time, c.end_time
 		FROM cooperation c
 		INNER JOIN blogger b ON c.blogger_id = b.id
-		WHERE b.user_name = ?
+		WHERE b.user_name = ? AND c.is_deleted = 0
 		AND (
-			(c.date IS NOT NULL AND c.date >= ? AND c.date <= ?)
+			(c.start_time IS NOT NULL AND c.start_time >= ? AND c.start_time <= ?)
+			OR
+			(c.end_time IS NOT NULL AND c.end_time >= ? AND c.end_time <= ?)
 		)
-		ORDER BY c.date ASC
-	`, username, startDate, endDate)
+		ORDER BY c.start_time ASC
+	`, userID, startDate, endDate, startDate, endDate)
 	if err == nil {
 		defer rows3.Close()
 		for rows3.Next() {
 			var id, bloggerID int
-			var nickname, productName, status, startTime string
+			var nickname, productName, status, startTime, endTime string
 			var fee float64
-			var endTime sql.NullString
 			rows3.Scan(&id, &bloggerID, &nickname, &productName, &fee, &status, &startTime, &endTime)
 			if startTime != "" && startTime >= startDate && startTime <= endDate {
 				events = append(events, CalendarEvent{
@@ -138,12 +136,12 @@ func (h *CalendarHandler) GetCalendarEvents(c *gin.Context) {
 					Remark:    "费用: ¥" + formatFee(fee),
 				})
 			}
-			if endTime.Valid && endTime.String != "" && endTime.String >= startDate && endTime.String <= endDate {
+			if endTime != "" && endTime >= startDate && endTime <= endDate {
 				events = append(events, CalendarEvent{
 					ID:        id,
 					Type:      "cooperation_end",
 					Title:     "📝 合作结束: " + nickname + " - " + productName,
-					Start:     endTime.String,
+					Start:     endTime,
 					Color:     "#f59e0b",
 					BlogID:    bloggerID,
 					BlogName:  nickname,

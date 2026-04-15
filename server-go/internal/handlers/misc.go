@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"server-go/internal/cache"
 	"server-go/internal/config"
 	"server-go/internal/database"
 	"server-go/internal/models"
@@ -26,10 +27,116 @@ type MiscHandler struct {
 }
 
 func NewMiscHandler(db *sql.DB, cfg *config.Config) *MiscHandler {
-	return &MiscHandler{DB: db, Cfg: cfg}
+	h := &MiscHandler{DB: db, Cfg: cfg}
+	go h.startAutoSnapshot()
+	return h
+}
+
+func (h *MiscHandler) startAutoSnapshot() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		var autoBackupStr string
+		err := h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'auto_backup'`).Scan(&autoBackupStr)
+		if err != nil || autoBackupStr != "true" {
+			continue
+		}
+
+		var intervalStr string
+		err = h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'backup_interval'`).Scan(&intervalStr)
+		if err != nil {
+			continue
+		}
+		intervalHours, _ := strconv.Atoi(intervalStr)
+		if intervalHours <= 0 {
+			intervalHours = 24
+		}
+
+		var lastTimeStr string
+		err = h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'last_auto_snapshot'`).Scan(&lastTimeStr)
+		if err == nil && lastTimeStr != "" {
+			lastTime, err := time.Parse(time.RFC3339, lastTimeStr)
+			if err == nil && time.Since(lastTime) < time.Duration(intervalHours)*time.Hour {
+				continue
+			}
+		}
+
+		now := time.Now()
+		filename := fmt.Sprintf("snapshot_%s.db", now.Format("20060102_150405"))
+		snapshotPath := filepath.Join(h.Cfg.UploadPath, "snapshots")
+		os.MkdirAll(snapshotPath, 0755)
+
+		h.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+
+		sourceData, err := os.ReadFile(h.Cfg.DatabasePath)
+		if err != nil {
+			continue
+		}
+
+		destPath := filepath.Join(snapshotPath, filename)
+		if err := os.WriteFile(destPath, sourceData, 0644); err != nil {
+			continue
+		}
+
+		fileInfo, _ := os.Stat(destPath)
+		size := int(fileInfo.Size())
+		created := now.Format(time.RFC3339)
+		mtime := now.Format(time.RFC3339)
+
+		h.DB.Exec(`INSERT INTO snapshots (name, filename, size, created, mtime) VALUES (?, ?, ?, ?, ?)`,
+			"自动快照", filename, size, created, mtime)
+
+		h.DB.Exec(`INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)`,
+			"last_auto_snapshot", now.Format(time.RFC3339))
+
+		var keepBackupsStr string
+		keepBackups := 7
+		err = h.DB.QueryRow(`SELECT value FROM system_settings WHERE key = 'keep_backups'`).Scan(&keepBackupsStr)
+		if err == nil {
+			kb, _ := strconv.Atoi(keepBackupsStr)
+			if kb > 0 {
+				keepBackups = kb
+			}
+		}
+
+		rows, _ := h.DB.Query(`SELECT id, filename FROM snapshots WHERE name = '自动快照' ORDER BY create_time DESC`)
+		count := 0
+		var toDelete []struct {
+			id       int
+			filename string
+		}
+		for rows.Next() {
+			var id int
+			var fn string
+			rows.Scan(&id, &fn)
+			count++
+			if count > keepBackups {
+				toDelete = append(toDelete, struct {
+					id       int
+					filename string
+				}{id, fn})
+			}
+		}
+		rows.Close()
+
+		for _, d := range toDelete {
+			os.Remove(filepath.Join(snapshotPath, d.filename))
+			h.DB.Exec("DELETE FROM snapshots WHERE id = ?", d.id)
+		}
+
+		database.AddLog("快照", "自动快照", "系统", "自动创建数据库快照")
+	}
 }
 
 func (h *MiscHandler) GetCategories(c *gin.Context) {
+	if cache.IsEnabled() {
+		var categories []models.Category
+		if err := cache.GetJSON(cache.PrefixCategory+"list", &categories); err == nil && len(categories) > 0 {
+			c.JSON(http.StatusOK, gin.H{"code": 200, "data": categories})
+			return
+		}
+	}
+
 	rows, err := h.DB.Query(`SELECT id, name, color, icon, create_time, update_time FROM categories ORDER BY id`)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []models.Category{}})
@@ -44,10 +151,22 @@ func (h *MiscHandler) GetCategories(c *gin.Context) {
 		categories = append(categories, cat)
 	}
 
+	if cache.IsEnabled() && len(categories) > 0 {
+		cache.SetJSON(cache.PrefixCategory+"list", categories, cache.CacheTTLLong)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"code": 200, "data": categories})
 }
 
 func (h *MiscHandler) GetPlatforms(c *gin.Context) {
+	if cache.IsEnabled() {
+		var platforms []models.Platform
+		if err := cache.GetJSON(cache.PrefixPlatform+"list", &platforms); err == nil && len(platforms) > 0 {
+			c.JSON(http.StatusOK, gin.H{"code": 200, "data": platforms})
+			return
+		}
+	}
+
 	rows, err := h.DB.Query(`SELECT id, name, icon, create_time FROM platforms ORDER BY id`)
 	if err != nil {
 		platforms := []map[string]interface{}{
@@ -74,10 +193,22 @@ func (h *MiscHandler) GetPlatforms(c *gin.Context) {
 		platforms = append(platforms, p)
 	}
 
+	if cache.IsEnabled() && len(platforms) > 0 {
+		cache.SetJSON(cache.PrefixPlatform+"list", platforms, cache.CacheTTLLong)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"code": 200, "data": platforms})
 }
 
 func (h *MiscHandler) GetProducts(c *gin.Context) {
+	if cache.IsEnabled() {
+		var products []models.Product
+		if err := cache.GetJSON(cache.PrefixProduct+"list", &products); err == nil && len(products) > 0 {
+			c.JSON(http.StatusOK, gin.H{"code": 200, "data": products})
+			return
+		}
+	}
+
 	rows, err := h.DB.Query(`SELECT id, name, create_time FROM products ORDER BY id`)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 200, "data": []models.Product{}})
@@ -90,6 +221,10 @@ func (h *MiscHandler) GetProducts(c *gin.Context) {
 		var p models.Product
 		rows.Scan(&p.ID, &p.Name, &p.CreateTime)
 		products = append(products, p)
+	}
+
+	if cache.IsEnabled() && len(products) > 0 {
+		cache.SetJSON(cache.PrefixProduct+"list", products, cache.CacheTTLLong)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "data": products})
@@ -138,6 +273,7 @@ func (h *MiscHandler) AddCategory(c *gin.Context) {
 		return
 	}
 	database.AddLog("新增", "分类【"+req.Name+"】", realName, "新增分类【"+req.Name+"】")
+	cache.InvalidateByPrefix(cache.PrefixCategory)
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "添加成功"})
 }
@@ -203,6 +339,7 @@ func (h *MiscHandler) UpdateCategory(c *gin.Context) {
 		newName = oldName
 	}
 	database.AddLog("编辑", "分类【"+oldName+"】", realName, "编辑分类【"+oldName+"】→【"+newName+"】")
+	cache.InvalidateByPrefix(cache.PrefixCategory)
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
 }
@@ -239,6 +376,7 @@ func (h *MiscHandler) DeleteCategory(c *gin.Context) {
 		return
 	}
 	database.AddLog("删除", "分类【"+name+"】", realName, "删除分类【"+name+"】")
+	cache.InvalidateByPrefix(cache.PrefixCategory)
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
@@ -275,6 +413,7 @@ func (h *MiscHandler) AddProduct(c *gin.Context) {
 		return
 	}
 	database.AddLog("新增", "产品【"+req.Name+"】", realName, "新增产品【"+req.Name+"】")
+	cache.InvalidateByPrefix(cache.PrefixProduct)
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "添加成功"})
 }
@@ -312,6 +451,7 @@ func (h *MiscHandler) UpdateProduct(c *gin.Context) {
 		return
 	}
 	database.AddLog("更新", "产品【"+req.Name+"】", realName, "更新产品【"+req.Name+"】")
+	cache.InvalidateByPrefix(cache.PrefixProduct)
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功"})
 }
@@ -341,6 +481,7 @@ func (h *MiscHandler) DeleteProduct(c *gin.Context) {
 		return
 	}
 	database.AddLog("删除", "产品【"+name+"】", realName, "删除产品【"+name+"】")
+	cache.InvalidateByPrefix(cache.PrefixProduct)
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "删除成功"})
 }
@@ -1238,6 +1379,8 @@ func (h *MiscHandler) CreateSnapshot(c *gin.Context) {
 	dbPath := h.Cfg.DatabasePath
 	destPath := filepath.Join(snapshotPath, filename)
 
+	h.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+
 	sourceData, err := os.ReadFile(dbPath)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "读取数据库失败"})
@@ -1303,13 +1446,6 @@ func (h *MiscHandler) DeleteSnapshot(c *gin.Context) {
 	}
 
 	snapshotPath := filepath.Join(h.Cfg.UploadPath, "snapshots", filename)
-	absPath, _ := filepath.Abs(snapshotPath)
-	snapshotDir, _ := filepath.Abs(filepath.Join(h.Cfg.UploadPath, "snapshots"))
-	if !strings.HasPrefix(absPath, snapshotDir+string(filepath.Separator)) {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "非法文件路径"})
-		return
-	}
-
 	os.Remove(snapshotPath)
 
 	h.DB.Exec("DELETE FROM snapshots WHERE filename = ?", filename)
@@ -1390,7 +1526,11 @@ func (h *MiscHandler) SetSnapshotSettings(c *gin.Context) {
 		return
 	}
 
-	h.DB.Exec(`INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)`, "auto_backup", req.AutoBackup)
+	autoBackupStr := "false"
+	if req.AutoBackup {
+		autoBackupStr = "true"
+	}
+	h.DB.Exec(`INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)`, "auto_backup", autoBackupStr)
 	h.DB.Exec(`INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)`, "backup_interval", req.BackupInterval)
 	h.DB.Exec(`INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)`, "keep_backups", req.KeepBackups)
 
@@ -1429,25 +1569,15 @@ func (h *MiscHandler) PurgeData(c *gin.Context) {
 	}
 
 	now := time.Now()
-	h.DB.Exec("DELETE FROM operation_log WHERE create_time < ?", now.AddDate(0, -3, 0))
-	h.DB.Exec("DELETE FROM notifications WHERE is_read = 1 AND create_time < ?", now.AddDate(0, -1, 0))
+	h.DB.Exec("DELETE FROM operation_log WHERE create_time < ?", now.AddDate(0, 0, -30))
+	h.DB.Exec("DELETE FROM notifications WHERE is_read = 1 AND create_time < ?", now.AddDate(0, 0, -30))
+	h.DB.Exec("DELETE FROM blogger WHERE is_deleted = 1 AND update_time < ?", now.AddDate(0, 0, -30))
+	h.DB.Exec("DELETE FROM followup WHERE is_deleted = 1 AND create_time < ?", now.AddDate(0, 0, -30))
+	h.DB.Exec("DELETE FROM cooperation WHERE is_deleted = 1 AND create_time < ?", now.AddDate(0, 0, -30))
 
-	database.AddLog("数据清理", "清理旧数据", realName, "清理3个月前的操作日志和1个月前的已读通知")
+	database.AddLog("数据清理", "清理旧数据", realName, "清理30天前的操作日志、已读通知和已删除记录")
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "数据清理完成"})
-}
-
-func sanitizeSnapshotFilename(filename string) (string, error) {
-	if filename == "" {
-		return "", fmt.Errorf("文件名不能为空")
-	}
-	if strings.Contains(filename, "..") || strings.ContainsAny(filename, "/\\") {
-		return "", fmt.Errorf("非法文件名")
-	}
-	if !strings.HasPrefix(filename, "snapshot_") || !strings.HasSuffix(filename, ".db") {
-		return "", fmt.Errorf("非法快照文件名")
-	}
-	return filename, nil
 }
 
 func (h *MiscHandler) DownloadSnapshot(c *gin.Context) {
@@ -1458,20 +1588,12 @@ func (h *MiscHandler) DownloadSnapshot(c *gin.Context) {
 	}
 
 	filename := c.Param("filename")
-	filename, err := sanitizeSnapshotFilename(filename)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
+	if filename == "" {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "文件名不能为空"})
 		return
 	}
 
 	snapshotPath := filepath.Join(h.Cfg.UploadPath, "snapshots", filename)
-	absPath, _ := filepath.Abs(snapshotPath)
-	snapshotDir, _ := filepath.Abs(filepath.Join(h.Cfg.UploadPath, "snapshots"))
-	if !strings.HasPrefix(absPath, snapshotDir+string(filepath.Separator)) {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "非法文件路径"})
-		return
-	}
-
 	if _, err := os.Stat(snapshotPath); os.IsNotExist(err) {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "快照不存在"})
 		return
@@ -1499,39 +1621,178 @@ func (h *MiscHandler) RestoreSnapshot(c *gin.Context) {
 		return
 	}
 
-	filename, err := sanitizeSnapshotFilename(filename)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": err.Error()})
-		return
-	}
-
 	snapshotPath := filepath.Join(h.Cfg.UploadPath, "snapshots", filename)
-	absPath, _ := filepath.Abs(snapshotPath)
-	snapshotDir, _ := filepath.Abs(filepath.Join(h.Cfg.UploadPath, "snapshots"))
-	if !strings.HasPrefix(absPath, snapshotDir+string(filepath.Separator)) {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "非法文件路径"})
-		return
-	}
-
 	if _, err := os.Stat(snapshotPath); os.IsNotExist(err) {
 		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "快照不存在"})
 		return
 	}
 
-	sourceData, err := os.ReadFile(snapshotPath)
+	tmpDB, err := sql.Open("sqlite", snapshotPath)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "读取快照失败"})
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "读取快照文件失败"})
+		return
+	}
+	defer tmpDB.Close()
+
+	tableOrder := []string{
+		"users", "teams", "blogger_tags", "blogger_tag_relations",
+		"blogger", "followup", "cooperation", "team_posts", "team_post_comments",
+		"team_post_likes", "team_post_collects", "notifications", "operation_log",
+		"system_settings", "saved_filters", "snapshots", "workflow_rules",
+		"public_posts", "public_post_comments", "public_post_likes",
+		"public_post_collects", "team_requests", "team_tasks",
+		"blogger_transfer_requests", "categories", "products",
+	}
+
+	tx, err := h.DB.Begin()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "开启事务失败"})
 		return
 	}
 
-	if err := os.WriteFile(h.Cfg.DatabasePath, sourceData, 0644); err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "还原数据库失败"})
+	for _, table := range tableOrder {
+		var tblExists int
+		tmpDB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&tblExists)
+		if tblExists == 0 {
+			continue
+		}
+
+		rows, err := tmpDB.Query(fmt.Sprintf("SELECT * FROM %s", table))
+		if err != nil {
+			continue
+		}
+
+		cols, _ := rows.Columns()
+		tx.Exec(fmt.Sprintf("DELETE FROM %s", table))
+
+		for rows.Next() {
+			values := make([]interface{}, len(cols))
+			valuePtrs := make([]interface{}, len(cols))
+			for i := range cols {
+				valuePtrs[i] = &values[i]
+			}
+			rows.Scan(valuePtrs...)
+
+			placeholders := make([]string, len(cols))
+			convertedValues := make([]interface{}, len(cols))
+			for i, val := range values {
+				placeholders[i] = "?"
+				switch v := val.(type) {
+				case nil:
+					convertedValues[i] = nil
+				case float64:
+					if v == float64(int(v)) {
+						convertedValues[i] = int(v)
+					} else {
+						convertedValues[i] = v
+					}
+				default:
+					convertedValues[i] = v
+				}
+			}
+
+			query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, strings.Join(cols, ","), strings.Join(placeholders, ","))
+			tx.Exec(query, convertedValues...)
+		}
+		rows.Close()
+	}
+
+	if err := tx.Commit(); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "还原数据失败: " + err.Error()})
 		return
 	}
 
 	database.AddLog("快照", "还原快照【"+filename+"】", realName, "还原数据库快照")
 
-	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "数据库已还原，请重启服务以使更改生效"})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "快照还原成功！数据已更新"})
+}
+
+func (h *MiscHandler) RestoreFromJSON(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	realNameVal, _ := c.Get("realName")
+	realName, ok := realNameVal.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"code": 401, "message": "未授权"})
+		return
+	}
+	if realName == "" {
+		realName = "未知用户"
+	}
+	if role != "admin" {
+		c.JSON(http.StatusOK, gin.H{"code": 403, "message": "权限不足"})
+		return
+	}
+
+	var restoreData struct {
+		Tables map[string][]map[string]interface{} `json:"tables"`
+	}
+	if err := c.ShouldBindJSON(&restoreData); err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "无效的备份文件格式"})
+		return
+	}
+	if len(restoreData.Tables) == 0 {
+		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "备份数据为空"})
+		return
+	}
+
+	tableOrder := []string{
+		"users", "teams", "blogger_tags", "blogger_tag_relations",
+		"blogger", "followup", "cooperation", "team_posts", "team_post_comments",
+		"team_post_likes", "team_post_collects", "notifications", "operation_log",
+		"system_settings", "saved_filters", "snapshots", "workflow_rules",
+		"public_posts", "public_post_comments", "public_post_likes",
+		"public_post_collects", "team_requests", "team_tasks",
+		"blogger_transfer_requests", "categories", "products",
+	}
+
+	tx, err := h.DB.Begin()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "开启事务失败"})
+		return
+	}
+
+	for _, table := range tableOrder {
+		rows, ok := restoreData.Tables[table]
+		if !ok || len(rows) == 0 {
+			continue
+		}
+		tx.Exec(fmt.Sprintf("DELETE FROM %s", table))
+		for _, row := range rows {
+			columns := []string{}
+			values := []interface{}{}
+			placeholders := []string{}
+			for col, val := range row {
+				columns = append(columns, col)
+				switch v := val.(type) {
+				case nil:
+					values = append(values, nil)
+				case float64:
+					if v == float64(int(v)) {
+						values = append(values, int(v))
+					} else {
+						values = append(values, v)
+					}
+				default:
+					values = append(values, v)
+				}
+				placeholders = append(placeholders, "?")
+			}
+			query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", table, strings.Join(columns, ","), strings.Join(placeholders, ","))
+			tx.Exec(query, values...)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "还原数据失败: " + err.Error()})
+		return
+	}
+
+	database.AddLog("快照", "从本地文件还原数据", realName, "从本地备份文件还原数据库")
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "还原成功！页面将刷新..."})
 }
 
 func (h *MiscHandler) ClearData(c *gin.Context) {
@@ -1585,6 +1846,10 @@ func (h *MiscHandler) ClearData(c *gin.Context) {
 		"DELETE FROM blogger_status_history",
 		"DELETE FROM private_messages",
 		"DELETE FROM snapshots",
+		"DELETE FROM blogger_tag_relations",
+		"DELETE FROM blogger_tags",
+		"DELETE FROM team_requests",
+		"DELETE FROM workflow_rules",
 		"UPDATE users SET team_id = NULL, team_name = NULL, team_color = NULL",
 	}
 
@@ -1601,6 +1866,15 @@ func (h *MiscHandler) ClearData(c *gin.Context) {
 		tx.Rollback()
 		c.JSON(http.StatusOK, gin.H{"code": 500, "message": "提交事务失败"})
 		return
+	}
+
+	snapshotDir := filepath.Join(h.Cfg.UploadPath, "snapshots")
+	if entries, err := os.ReadDir(snapshotDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				os.Remove(filepath.Join(snapshotDir, entry.Name()))
+			}
+		}
 	}
 
 	database.AddLog("清空数据", "清空所有数据", realName, "清空博主、跟进，合作、团队、帖子、通知等所有业务数据")
