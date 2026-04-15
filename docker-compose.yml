@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  orange-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orange-frontend
+    ports:
+      - "8080:80"
+    networks:
+      - orange-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      orange-backend:
+        condition: service_healthy
+
+  orange-backend:
+    build:
+      context: ./server-go
+      dockerfile: Dockerfile
+    container_name: orange-backend
+    ports:
+      - "3003:3003"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    environment:
+      - ENV=production
+      - SERVER_PORT=3003
+      - DATABASE_PATH=/app/data/data.db
+      - UPLOAD_PATH=/app/uploads
+      - CORS_ORIGIN=http://123.56.99.154
+      - JWT_SECRET=${JWT_SECRET:-please-change-this-secret-in-production}
+      - MAX_UPLOAD_SIZE=10485760
+    networks:
+      - orange-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  orange-network:
+    driver: bridge

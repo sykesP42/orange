@@ -1,0 +1,30 @@
+# Orange 本地快速部署（仅前端）
+# 用于开发测试，不包含后端服务
+# 注意：API 请求需要后端服务运行在 localhost:3003
+
+version: '3.8'
+
+services:
+  orange-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orange-frontend
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./dist:/usr/share/nginx/html/orange
+      - ./deploy/nginx.local.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - orange-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  orange-network:
+    driver: bridge
