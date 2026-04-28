@@ -1,1 +1,0 @@
-{"name": "orange-desktop", "version": "1.0.0", "description": "Orange Blogger Manager - Desktop App (Tauri)", "private": true, "scripts": {"tauri": "tauri", "build:web": "cd ../.. && npm run build", "dev": "npm run tauri dev", "build": "npm run build:web && npm run tauri build"}, "dependencies": {"@tauri-apps/api": "^1.5.3"}, "devDependencies": {"@tauri-apps/cli": "^1.5.9"}}
