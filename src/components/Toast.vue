@@ -1,5 +1,4 @@
-﻿<template>
-  <Teleport to="body">
+<template>
   <div class="toast-container">
     <transition-group name="toast">
       <div v-for="toast in toasts" :key="toast.id" class="toast" :class="toast.type" @click="removeToast(toast.id)">
@@ -17,7 +16,6 @@
       </div>
     </transition-group>
   </div>
-  </Teleport>
 </template>
 
 <script setup>
@@ -66,11 +64,10 @@ defineExpose({ success, error, warning, info, addToast, removeToast })
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 99999;
+  z-index: 100000;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  pointer-events: auto;
 }
 
 .toast {
@@ -118,12 +115,12 @@ defineExpose({ success, error, warning, info, addToast, removeToast })
 
 .toast.success .toast-icon {
   background: rgba(16, 185, 129, 0.1);
-  color: var(--success);
+  color: #10b981;
 }
 
 .toast.error .toast-icon {
   background: rgba(239, 68, 68, 0.1);
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .toast.warning .toast-icon {
@@ -133,7 +130,7 @@ defineExpose({ success, error, warning, info, addToast, removeToast })
 
 .toast.info .toast-icon {
   background: rgba(59, 130, 246, 0.1);
-  color: var(--info);
+  color: #3b82f6;
 }
 
 .toast-content {
@@ -144,13 +141,13 @@ defineExpose({ success, error, warning, info, addToast, removeToast })
 .toast-title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #1f2937;
   margin-bottom: 2px;
 }
 
 .toast-message {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: #6b7280;
   line-height: 1.4;
 }
 

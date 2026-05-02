@@ -188,7 +188,7 @@ const widths = ['85%', '95%', '70%', '60%', '90%']
 }
 .dark-mode .ske-list-row { --border-color: #2a2a38; }
 .ske-cell { flex: 1; display: flex; align-items: center; }
-.ske.cell.narrow { flex: 0 0 56px; justify-content: center; }
+.ske-cell.narrow { flex: 0 0 56px; justify-content: center; }
 .ske-cell.med { flex: 1.5; }
 .ske-circle { width: 32px; height: 32px; border-radius: 50%; }
 .ske-text { width: 65%; height: 13px; }

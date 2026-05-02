@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="log-page">
     <div class="page-header">
       <div class="header-content">
@@ -95,7 +95,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { getOperationLog, getPublicUsersAPI, deleteLogAPI } from '../api'
+import { getOperationLog, userListAPI, deleteLogAPI } from '../api'
 
 const logs = ref([])
 const users = ref([])
@@ -140,7 +140,7 @@ const loadLogs = async () => {
 
 const loadUsers = async () => {
   try {
-    const res = await getPublicUsersAPI()
+    const res = await userListAPI()
     if (res.code === 200) {
       users.value = (res.data || []).map(u => u.real_name || u.username)
     }
@@ -395,7 +395,7 @@ onMounted(() => {
   border: none;
   border-radius: 8px;
   background: rgba(239, 68, 68, 0.1);
-  color: var(--danger);
+  color: #ef4444;
   font-size: 20px;
   cursor: pointer;
   transition: all 0.2s;
@@ -514,13 +514,13 @@ onMounted(() => {
 }
 
 .confirm-btn {
-  background: var(--danger);
+  background: #ef4444;
   color: white;
-  border-color: var(--danger);
+  border-color: #ef4444;
 }
 
 .confirm-btn:hover {
-  background: var(--danger);
+  background: #dc2626;
 }
 
 @media (max-width: 640px) {

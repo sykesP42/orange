@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="analytics-dashboard">
     <div class="dashboard-header">
       <h2>📊 数据分析</h2>
@@ -14,7 +14,10 @@
       </div>
     </div>
 
-    <div v-if="loading" class="loading">加载中...</div>
+    <div v-if="loading" class="loading">
+      <div class="loading-spinner"></div>
+      <span>加载中...</span>
+    </div>
 
     <template v-else-if="data">
       <div class="stats-grid">
@@ -163,13 +166,22 @@
         </div>
       </div>
     </template>
+
+    <div v-else class="empty-state">
+      <div class="empty-icon">📊</div>
+      <h3>暂无数据</h3>
+      <p>还没有分析数据，开始录入博主后将自动生成</p>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { logger } from '../utils/logger'
+import { useNotification } from '../stores/notification'
 import { getAnalyticsOverviewAPI } from '../api'
 
+const notification = useNotification()
 const loading = ref(false)
 const data = ref(null)
 const selectedRange = ref('6m')
@@ -183,12 +195,13 @@ const timeRanges = [
 const loadAnalytics = async () => {
   loading.value = true
   try {
-    const res = await getAnalyticsOverviewAPI()
+    const res = await getAnalyticsOverviewAPI({ range: selectedRange.value })
     if (res.code === 200) {
       data.value = res.data
     }
   } catch (error) {
-    console.error('加载统计数据失败', error)
+    logger.error('', error)
+    notification.error('加载统计数据失败')
   } finally {
     loading.value = false
   }
@@ -211,17 +224,17 @@ const getBarHeight = (value) => {
 }
 
 const getStatusColor = (index) => {
-  const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280']
+  const colors = ['var(--success)', 'var(--info)', 'var(--warning)', 'var(--danger)', 'var(--purple)', '#6b7280']
   return colors[index % colors.length]
 }
 
 const getCategoryColor = (index) => {
-  const colors = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899']
+  const colors = ['var(--primary)', 'var(--info)', 'var(--success)', 'var(--purple)', 'var(--purple)']
   return colors[index % colors.length]
 }
 
 const getPlatformColor = (index) => {
-  const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
+  const colors = ['var(--danger)', 'var(--primary)', '#eab308', 'var(--success)', 'var(--info)']
   return colors[index % colors.length]
 }
 
@@ -233,6 +246,10 @@ const getRankClass = (index) => {
 }
 
 onMounted(() => {
+  loadAnalytics()
+})
+
+watch(selectedRange, () => {
   loadAnalytics()
 })
 </script>
@@ -261,10 +278,10 @@ onMounted(() => {
 .time-range {
   display: flex;
   gap: 8px;
-  background: white;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   padding: 4px;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .time-range button {
@@ -281,14 +298,31 @@ onMounted(() => {
 
 .time-range button.active {
   background: var(--primary);
-  color: white;
+  color: var(--bg-card);
 }
 
 .loading {
-  text-align: center;
-  padding: 60px;
-  color: #9ca3af;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  color: var(--text-tertiary);
   font-size: 16px;
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .stats-grid {
@@ -303,15 +337,15 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   padding: 24px;
-  background: white;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: all 0.2s;
 }
 
 .stat-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 .stat-icon {
@@ -342,10 +376,10 @@ onMounted(() => {
 }
 
 .chart-card {
-  background: white;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .chart-card h3 {
@@ -508,17 +542,17 @@ onMounted(() => {
 
 .rank-number.gold {
   background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  color: white;
+  color: var(--color-on-brand);
 }
 
 .rank-number.silver {
   background: linear-gradient(135deg, #9ca3af, #6b7280);
-  color: white;
+  color: var(--color-on-brand);
 }
 
 .rank-number.bronze {
   background: linear-gradient(135deg, #d97706, #92400e);
-  color: white;
+  color: var(--color-on-brand);
 }
 
 .rank-name {
@@ -554,5 +588,65 @@ onMounted(() => {
   .charts-row {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 640px) {
+  .analytics-dashboard {
+    padding: 16px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .pie-item {
+    grid-template-columns: 80px 1fr 50px;
+  }
+
+  .rank-item {
+    grid-template-columns: 28px 1fr 50px 80px;
+  }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  color: var(--text-tertiary);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.empty-state h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 8px 0;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  margin: 0;
 }
 </style>

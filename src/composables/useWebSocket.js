@@ -26,7 +26,6 @@ export const useWebSocket = () => {
       ws = new WebSocket(WS_URL())
 
       ws.onopen = () => {
-        console.log('WebSocket connected')
         isConnected.value = true
 
         sendMessage({ type: 'subscribe' })
@@ -51,13 +50,11 @@ export const useWebSocket = () => {
       }
 
       ws.onclose = () => {
-        console.log('WebSocket disconnected')
         isConnected.value = false
         if (heartbeatTimer) clearInterval(heartbeatTimer)
 
         if (reconnectTimer) clearTimeout(reconnectTimer)
         reconnectTimer = setTimeout(() => {
-          console.log('WebSocket reconnecting...')
           connect()
         }, 3000)
       }

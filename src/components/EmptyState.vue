@@ -16,10 +16,6 @@
 </template>
 
 <script setup>
-import { useI18n } from 'vue-i18n'
-
-const { t } = useI18n()
-
 defineProps({
   icon: {
     type: String,
@@ -27,7 +23,7 @@ defineProps({
   },
   title: {
     type: String,
-    default: () => t('app.noData')
+    default: '暂无数据'
   },
   description: {
     type: String,

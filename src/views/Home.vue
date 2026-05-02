@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="home">
     <div class="announcement-bar" v-if="announcements.length > 0">
       <div class="announcement-icon">
@@ -61,48 +61,35 @@
     <div class="batch-actions-bar" v-if="selectedBloggers.length > 0">
       <div class="batch-info">
         <span class="selected-count">已选择 <strong>{{ selectedBloggers.length }}</strong> 位博主</span>
-        <div class="batch-summary" v-if="selectedBloggers.length > 0">
-          <span v-for="(count, status) in selectedBreakdown" :key="status" class="summary-chip" :class="getStatusClass(status)">
-            {{ status }} {{ count }}
-          </span>
-        </div>
-        <button class="select-all-btn" @click="selectAll" :disabled="isAllSelected">全选</button>
-        <button class="clear-selection-btn" @click="clearSelection">清除 (Esc)</button>
+        <button class="select-all-btn" @click="selectAll">全选</button>
+        <button class="clear-selection-btn" @click="clearSelection">清除</button>
       </div>
       <div class="batch-buttons">
         <button class="batch-btn batch-status-btn" @click="showBatchStatusDialog = true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6v6l4 2"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 6v6l4 2"/>
+          </svg>
           批量修改状态
         </button>
         <button class="batch-btn batch-tag-btn" @click="showBatchTagDialog = true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+            <line x1="7" y1="7" x2="7.01" y2="7"/>
+          </svg>
           批量修改标签
         </button>
         <button v-if="userStore.role === 'admin'" class="batch-btn batch-delete-btn" @click="handleBatchDelete">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3,6 5,6 21,6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
           批量删除
         </button>
       </div>
     </div>
 
-    <StatsDashboard
-      :total="total"
-      :active-count="activeCount"
-      :pending-count="pendingCount"
-      :invalid-count="invalidBloggerCount"
-      :today-new="todayNew"
-      :week-growth="weekGrowth"
-      :cooperation-rate="cooperationRate"
-      :loading="loading"
-      :is-dark="themeStore?.isDark"
-      @add="router.push('/add')"
-      @invalid="router.push('/invalid-bloggers')"
-      @kanban="showKanban = true"
-      @workflow="router.push('/workflow')"
-    />
-
     <div class="filters">
-      <div class="search-box">
+      <div class="search-box" style="position: relative;">
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"/>
           <line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -110,8 +97,15 @@
         <input
           v-model="filters.keyword"
           type="text"
-          placeholder="搜索博主昵称..."
+          placeholder="搜索博主昵称、拼音..."
           @input="handleSearch"
+          @focus="showSearchSuggestions = true"
+          @blur="hideSearchSuggestions"
+        />
+        <SearchSuggestions
+          :keyword="filters.keyword"
+          :visible="showSearchSuggestions && !!filters.keyword"
+          @select="handleSuggestionSelect"
         />
       </div>
 
@@ -161,13 +155,21 @@
       </div>
     </div>
 
-    <TagCloud
-      v-if="allTags.length > 0"
-      :tags="tagCloudData"
-      :selected-tag="filters.tag"
-      :is-dark="themeStore?.isDark"
-      @select="toggleTag"
-    />
+    <div class="wordcloud-section" v-if="allTags.length > 0">
+      <h3>标签词云</h3>
+      <div class="wordcloud">
+        <span
+          v-for="tag in allTags"
+          :key="tag"
+          class="cloud-tag"
+          :class="{ active: filters.tag === tag }"
+          :style="{ fontSize: getTagSize(tag) }"
+          @click="toggleTag(tag)"
+        >
+          {{ tag }}
+        </span>
+      </div>
+    </div>
 
     <div class="view-toggle">
       <button 
@@ -195,28 +197,9 @@
         </svg>
         列表
       </button>
-      <button 
-        class="toggle-btn" 
-        :class="{ active: viewMode === 'kanban' }"
-        @click="switchToKanban"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="4" height="18" rx="1"/>
-          <rect x="10" y="3" width="4" height="12" rx="1"/>
-          <rect x="17" y="3" width="4" height="16" rx="1"/>
-        </svg>
-        看板
-      </button>
     </div>
 
-    <SkeletonLoader
-      v-if="loading"
-      :variant="viewMode === 'card' ? 'blogger-card' : 'blogger-list'"
-      :count="pageSize"
-      :is-dark="themeStore?.isDark"
-    />
-
-    <div class="blogger-grid" v-if="!loading && bloggers.length > 0 && viewMode === 'card'">
+    <div class="blogger-grid" v-if="bloggers.length > 0 && viewMode === 'card'">
       <div v-for="blogger in bloggers" :key="blogger.id" class="blogger-card" :class="{ 'card-selected': isSelected(blogger.id) }">
         <div class="card-checkbox" @click.stop="toggleSelect(blogger)">
           <input type="checkbox" :checked="isSelected(blogger.id)" @click.stop />
@@ -226,7 +209,7 @@
           <div class="card-bg" :class="getStatusClass(blogger.status)"></div>
           
           <div v-if="blogger.avatar" class="card-avatar-bg">
-            <img :src="blogger.avatar" :alt="blogger.nickname" loading="lazy" v-avatar />
+            <img :src="blogger.avatar" :alt="blogger.nickname" />
           </div>
           
           <div class="view-detail-text" :class="getStatusClass(blogger.status)">
@@ -274,8 +257,7 @@
               </div>
               
               <div class="small-avatar" :class="{ 'has-image': blogger.avatar }">
-                <img v-if="blogger.avatar" :src="blogger.avatar" :alt="blogger.nickname" loading="lazy" v-avatar />
-                <template v-else>{{ blogger.nickname?.charAt(0) || '?' }}</template>
+                <Avatar :src="blogger.avatar" :name="blogger.nickname" size="sm" />
               </div>
             </div>
             
@@ -350,7 +332,7 @@
       </div>
     </div>
 
-    <div class="blogger-list" v-if="!loading && bloggers.length > 0 && viewMode === 'list'">
+    <div class="blogger-list" v-if="bloggers.length > 0 && viewMode === 'list'">
       <div class="list-header">
         <div class="list-cell checkbox-cell">
           <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" />
@@ -398,10 +380,7 @@
           <input type="checkbox" :checked="isSelected(blogger.id)" />
         </div>
         <div class="list-cell avatar-cell">
-          <img v-if="blogger.avatar" :src="blogger.avatar" class="avatar-img" :alt="blogger.nickname" loading="lazy" v-avatar />
-          <div v-else class="avatar-mini" :style="{ background: getCategoryColor(blogger.category) }">
-            {{ blogger.nickname?.charAt(0) || '?' }}
-          </div>
+          <Avatar :src="blogger.avatar" :name="blogger.nickname" size="xs" />
         </div>
         <div class="list-cell nickname-cell">
           <span class="nickname">{{ blogger.nickname }}</span>
@@ -442,14 +421,7 @@
       </div>
     </div>
 
-    <KanbanBoard
-      v-if="!loading && viewMode === 'kanban' && bloggers.length > 0"
-      :bloggers="kanbanBloggers"
-      @goToDetail="goToDetail"
-      @updateStatus="handleKanbanUpdateStatus"
-    />
-
-    <div v-if="!loading && bloggers.length === 0" class="empty-state">
+    <div v-if="bloggers.length === 0" class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
         <circle cx="12" cy="7" r="4"/>
@@ -596,27 +568,19 @@
   </div>
 </template>
 
-<script>
-export default { name: 'Home' }
-</script>
-
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
-import { useThemeStore } from '../stores/theme'
 import { useConfirm } from '../utils/confirm'
-import { bloggerListAPI, categoryListAPI, getPublicUsersAPI, bloggerDeleteAPI, getBloggerStatusList, getTeamsAPI, getAnnouncementsAPI, getInvalidBloggerCountAPI, getTagsAPI, batchUpdateStatusAPI, batchUpdateTagsAPI, batchDeleteAPI, getSavedFiltersAPI, createSavedFilterAPI, deleteSavedFilterAPI, bloggerUpdateAPI } from '../api'
-import KanbanBoard from '../components/KanbanBoard.vue'
-import TagCloud from '../components/TagCloud.vue'
-import StatsDashboard from '../components/StatsDashboard.vue'
-import SkeletonLoader from '../components/SkeletonLoader.vue'
+import { bloggerListAPI, categoryListAPI, userListAPI, bloggerDeleteAPI, getBloggerStatusList, getTeamsAPI, getAnnouncementsAPI, getInvalidBloggerCountAPI, getTagsAPI, batchUpdateStatusAPI, batchUpdateTagsAPI, batchDeleteAPI, getSavedFiltersAPI, createSavedFilterAPI, deleteSavedFilterAPI } from '../api'
+import Avatar from '../components/Avatar.vue'
+import SearchSuggestions from '../components/SearchSuggestions.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 const notification = useNotification()
-const themeStore = useThemeStore()
 const { confirmDanger } = useConfirm()
 
 const bloggers = ref([])
@@ -627,12 +591,6 @@ const statusList = ref([])
 const announcements = ref([])
 const invalidBloggerCount = ref(0)
 const total = ref(0)
-const loading = ref(false)
-const activeCount = ref(0)
-const pendingCount = ref(0)
-const todayNew = ref(0)
-const weekGrowth = ref(0)
-const cooperationRate = ref(0)
 const page = ref(1)
 const viewMode = ref('card')
 const sortField = ref('')
@@ -665,24 +623,10 @@ const showSaveFilterDialog = ref(false)
 const newFilterName = ref('')
 const newFilterIsDefault = ref(false)
 
-const selectedSet = computed(() => new Set(selectedBloggers.value))
-
-const isSelected = (id) => selectedSet.value.has(id)
+const isSelected = (id) => selectedBloggers.value.includes(id)
 
 const isAllSelected = computed(() => {
   return bloggers.value.length > 0 && selectedBloggers.value.length === bloggers.value.length
-})
-
-const selectedBreakdown = computed(() => {
-  const map = {}
-  selectedBloggers.value.forEach(id => {
-    const b = bloggers.value.find(bl => bl.id === id)
-    if (b) {
-      const s = b.status || '未知'
-      map[s] = (map[s] || 0) + 1
-    }
-  })
-  return map
 })
 
 const toggleSelect = (blogger) => {
@@ -884,11 +828,10 @@ const loadStatusList = async () => {
 }
 
 const loadBloggers = async () => {
-  loading.value = true
   try {
     const params = {
       page: page.value,
-      pageSize: viewMode.value === 'kanban' ? 9999 : pageSize,
+      pageSize,
       keyword: filters.keyword,
       category: filters.category,
       team_id: filters.team_id,
@@ -900,7 +843,6 @@ const loadBloggers = async () => {
       if (filters.tag) {
         list = list.filter(b => b.tags && b.tags.includes(filters.tag))
       }
-
       list = list.map(b => ({
         ...b,
         team_name: getTeamNameById(b.team_id)
@@ -918,19 +860,9 @@ const loadBloggers = async () => {
       })
       allTags.value = Object.keys(tags)
       tagCounts.value = tags
-
-      const allList = res.data.list || []
-      activeCount.value = allList.filter(b => b.status === '已合作').length
-      pendingCount.value = allList.filter(b => b.status === '洽谈中' || b.status === '初次联系').length
-      const cooperated = activeCount.value
-      cooperationRate.value = total.value > 0 ? Math.round((cooperated / total.value) * 100) : 0
-      todayNew.value = Math.min(allList.length > 5 ? Math.floor(Math.random() * 3 + 1) : 0, allList.length)
-      weekGrowth.value = total.value > 10 ? Math.floor(Math.random() * 20 - 3) : 0
     }
   } catch (error) {
     console.error('加载博主列表失败', error)
-  } finally {
-    loading.value = false
   }
 }
 
@@ -969,7 +901,7 @@ const loadInvalidBloggerCount = async () => {
 
 const loadUsers = async () => {
   try {
-    const res = await getPublicUsersAPI()
+    const res = await userListAPI()
     if (res.code === 200) {
       users.value = res.data || []
     }
@@ -996,6 +928,20 @@ const handleSearch = () => {
     page.value = 1
     loadBloggers()
   }, 300)
+}
+
+const showSearchSuggestions = ref(false)
+
+const hideSearchSuggestions = () => {
+  setTimeout(() => {
+    showSearchSuggestions.value = false
+  }, 200)
+}
+
+const handleSuggestionSelect = (value) => {
+  filters.keyword = value
+  showSearchSuggestions.value = false
+  handleSearch()
 }
 
 const handlePageChange = (newPage) => {
@@ -1079,13 +1025,6 @@ const sortBloggers = () => {
   })
 }
 
-const tagCloudData = computed(() => {
-  return allTags.value.map(name => ({
-    name,
-    count: tagCounts.value[name] || 0
-  }))
-})
-
 const toggleTag = (tag) => {
   if (filters.tag === tag) {
     filters.tag = ''
@@ -1143,30 +1082,6 @@ const getStatusColor = (status) => {
     '暂停合作': '#6b7280'
   }
   return colorMap[status] || '#3b82f6'
-}
-
-const kanbanBloggers = computed(() => bloggers.value)
-
-const switchToKanban = () => {
-  viewMode.value = 'kanban'
-  if (filters.status) {
-    filters.status = ''
-    loadBloggers()
-  }
-}
-
-const handleKanbanUpdateStatus = async (bloggerId, newStatus, oldStatus) => {
-  try {
-    const res = await bloggerUpdateAPI(bloggerId, { status: newStatus })
-    if (res.code === 200) {
-      notification.success(`${oldStatus} → ${newStatus}`)
-      loadBloggers()
-    } else {
-      notification.error(res.message || '状态更新失败')
-    }
-  } catch (error) {
-    notification.error('状态更新失败')
-  }
 }
 
 const getCategoryColor = (categoryName) => {
@@ -1240,18 +1155,7 @@ onMounted(() => {
   loadInvalidBloggerCount()
   loadTagsList()
   loadSavedFilters()
-  window.addEventListener('keydown', handleKeydown)
 })
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
-})
-
-const handleKeydown = (e) => {
-  if (e.key === 'Escape' && selectedBloggers.value.length > 0) {
-    clearSelection()
-  }
-}
 </script>
 
 <style scoped>
@@ -1272,14 +1176,14 @@ const handleKeydown = (e) => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  border: 1px solid var(--border-warning);
+  border: 1px solid #fcd34d;
 }
 
 .announcement-icon {
   flex-shrink: 0;
   width: 24px;
   height: 24px;
-  color: var(--warning);
+  color: #d97706;
   margin-top: 2px;
 }
 
@@ -1289,13 +1193,13 @@ const handleKeydown = (e) => {
 
 .announcement-title {
   font-weight: 600;
-  color: var(--warning);
+  color: #92400e;
   font-size: 14px;
   margin-bottom: 4px;
 }
 
 .announcement-text {
-  color: var(--warning);
+  color: #78350f;
   font-size: 13px;
 }
 
@@ -1307,7 +1211,7 @@ const handleKeydown = (e) => {
   display: flex;
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--border-info);
+  border: 1px solid #bfdbfe;
   cursor: pointer;
   transition: all 0.3s ease;
 }
@@ -1321,7 +1225,7 @@ const handleKeydown = (e) => {
   flex-shrink: 0;
   width: 24px;
   height: 24px;
-  color: var(--info);
+  color: #2563eb;
 }
 
 .tip-content {
@@ -1330,13 +1234,13 @@ const handleKeydown = (e) => {
 
 .tip-title {
   font-weight: 600;
-  color: var(--info);
+  color: #1e40af;
   font-size: 14px;
   margin-bottom: 4px;
 }
 
 .tip-text {
-  color: var(--info);
+  color: #3b82f6;
   font-size: 13px;
 }
 
@@ -1344,7 +1248,7 @@ const handleKeydown = (e) => {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  color: var(--info);
+  color: #2563eb;
 }
 
 .header-buttons {
@@ -1384,7 +1288,7 @@ const handleKeydown = (e) => {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: var(--danger);
+  background: #ef4444;
   color: white;
   font-size: 12px;
   font-weight: 600;
@@ -1553,7 +1457,7 @@ const handleKeydown = (e) => {
 
 .blogger-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 24px;
 }
 
@@ -1735,11 +1639,11 @@ const handleKeydown = (e) => {
   margin-right: 6px;
 }
 
-.status-dot.status-first { background: var(--info); }
-.status-dot.status-negotiating { background: var(--primary); }
-.status-dot.status-cooperated { background: var(--success); }
-.status-dot.status-rejected { background: var(--danger); }
-.status-dot.status-paused { background: var(--text-tertiary); }
+.status-dot.status-first { background: #3b82f6; }
+.status-dot.status-negotiating { background: #f97316; }
+.status-dot.status-cooperated { background: #22c55e; }
+.status-dot.status-rejected { background: #ef4444; }
+.status-dot.status-paused { background: #6b7280; }
 
 .status-text {
   font-size: 12px;
@@ -1920,7 +1824,7 @@ const handleKeydown = (e) => {
   z-index: 20;
   font-size: 12px;
   font-weight: 600;
-  color: var(--info);
+  color: #3b82f6;
   padding: 4px 10px;
   border-radius: 6px;
   opacity: 0;
@@ -1928,23 +1832,23 @@ const handleKeydown = (e) => {
 }
 
 .view-detail-text.status-first {
-  color: var(--info);
+  color: #3b82f6;
 }
 
 .view-detail-text.status-negotiating {
-  color: var(--primary);
+  color: #f97316;
 }
 
 .view-detail-text.status-cooperated {
-  color: var(--success);
+  color: #22c55e;
 }
 
 .view-detail-text.status-rejected {
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .view-detail-text.status-paused {
-  color: var(--text-tertiary);
+  color: #6b7280;
 }
 
 .dark .view-detail-text.status-paused {
@@ -2171,14 +2075,9 @@ const handleKeydown = (e) => {
   right: 0;
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, var(--primary), #7c3aed);
-  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 22px;
-  font-weight: 700;
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
@@ -2209,7 +2108,7 @@ const handleKeydown = (e) => {
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #4b5563;
   margin-bottom: 16px;
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -2239,7 +2138,7 @@ const handleKeydown = (e) => {
 .blogger-name h3 {
   font-size: 28px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #1f2937;
   margin: 0;
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   line-height: 1.2;
@@ -2266,23 +2165,23 @@ const handleKeydown = (e) => {
 }
 
 .status-badge.status-first {
-  color: var(--info);
+  color: #3b82f6;
 }
 
 .status-badge.status-negotiating {
-  color: var(--primary);
+  color: #f97316;
 }
 
 .status-badge.status-cooperated {
-  color: var(--success);
+  color: #22c55e;
 }
 
 .status-badge.status-rejected {
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .status-badge.status-paused {
-  color: var(--text-tertiary);
+  color: #6b7280;
 }
 
 .dark .status-badge.status-paused {
@@ -2292,7 +2191,7 @@ const handleKeydown = (e) => {
 .category {
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-tertiary);
+  color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
@@ -2356,7 +2255,7 @@ const handleKeydown = (e) => {
 .info-item .text {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #374151;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2370,7 +2269,7 @@ const handleKeydown = (e) => {
 
 .blogger-card:hover .info-item .text {
   opacity: 1;
-  color: var(--text-primary);
+  color: #1f2937;
 }
 
 .dark .blogger-card:hover .info-item .text {
@@ -2404,7 +2303,7 @@ const handleKeydown = (e) => {
 }
 
 .status-pill.status-first .text {
-  color: var(--info);
+  color: #3b82f6;
 }
 
 .status-pill.status-negotiating {
@@ -2418,7 +2317,7 @@ const handleKeydown = (e) => {
 }
 
 .status-pill.status-negotiating .text {
-  color: var(--primary);
+  color: #f97316;
 }
 
 .status-pill.status-cooperated {
@@ -2432,7 +2331,7 @@ const handleKeydown = (e) => {
 }
 
 .status-pill.status-cooperated .text {
-  color: var(--success);
+  color: #22c55e;
 }
 
 .status-pill.status-rejected {
@@ -2446,7 +2345,7 @@ const handleKeydown = (e) => {
 }
 
 .status-pill.status-rejected .text {
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .status-pill.status-paused {
@@ -2460,7 +2359,7 @@ const handleKeydown = (e) => {
 }
 
 .status-pill.status-paused .text {
-  color: var(--text-tertiary);
+  color: #6b7280;
 }
 
 .dark .status-pill.status-paused .text {
@@ -2522,7 +2421,7 @@ const handleKeydown = (e) => {
   background: rgba(0, 0, 0, 0.06);
   border: 1px dashed rgba(0, 0, 0, 0.15);
   box-shadow: none;
-  color: var(--text-tertiary);
+  color: #6b7280;
 }
 
 .dark .tag.more {
@@ -2723,18 +2622,9 @@ const handleKeydown = (e) => {
     gap: 16px;
   }
 
-  .header-buttons {
-    width: 100%;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .invalid-btn,
   .add-btn {
     width: 100%;
     justify-content: center;
-    padding: 12px 16px;
-    font-size: 14px;
   }
 
   .filters {
@@ -2771,50 +2661,6 @@ const handleKeydown = (e) => {
     width: 100%;
     justify-content: flex-end;
   }
-
-  .blogger-card .card-info {
-    opacity: 1;
-    max-height: 500px;
-    transform: translateY(0);
-    overflow: visible;
-  }
-
-  .blogger-card .card-content {
-    padding-right: 0;
-  }
-
-  .blogger-card .card-checkbox {
-    opacity: 1;
-  }
-
-  .blogger-card .view-detail-text {
-    opacity: 1;
-  }
-
-  .blogger-list {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .batch-actions-bar {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-
-  .batch-buttons {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .filter-actions {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .saved-filter-select {
-    min-width: 100%;
-  }
 }
 
 @media (max-width: 480px) {
@@ -2832,42 +2678,15 @@ const handleKeydown = (e) => {
 }
 
 .batch-actions-bar {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.06));
-  border: 1px solid rgba(102, 126, 234, 0.2);
-  border-radius: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
   padding: 16px 20px;
   margin-bottom: 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
 }
-
-.batch-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.batch-summary {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
-.summary-chip {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-.summary-chip.status-first { background: rgba(59, 130, 246, 0.1); color: var(--info); }
-.summary-chip.status-negotiating { background: rgba(249, 115, 22, 0.1); color: var(--primary); }
-.summary-chip.status-cooperated { background: rgba(34, 197, 94, 0.1); color: var(--success); }
-.summary-chip.status-rejected { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
-.summary-chip.status-paused { background: rgba(107, 114, 128, 0.1); color: var(--text-tertiary); }
 
 .batch-info {
   display: flex;
@@ -2931,7 +2750,7 @@ const handleKeydown = (e) => {
 }
 
 .batch-status-btn:hover {
-  background: var(--bg-tertiary);
+  background: #f0f0f0;
   transform: translateY(-1px);
 }
 
@@ -2951,7 +2770,7 @@ const handleKeydown = (e) => {
 }
 
 .batch-delete-btn:hover {
-  background: var(--danger);
+  background: #ef4444;
   transform: translateY(-1px);
 }
 

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="team-page">
     <div class="page-header">
       <div class="header-left">
@@ -18,15 +18,18 @@
               <span class="btn-subtitle">即时通讯</span>
             </div>
           </button>
-          <button @click="goToPublicForum" class="action-btn public-forum-btn">
+          <button @click="goToUsers" class="action-btn public-forum-btn">
             <div class="btn-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
             </div>
             <div class="btn-text">
-              <span class="btn-title">公共论坛</span>
-              <span class="btn-subtitle">参与讨论</span>
+              <span class="btn-title">用户列表</span>
+              <span class="btn-subtitle">查看成员</span>
             </div>
           </button>
           <button v-if="hasTeam" class="action-btn my-team-btn" @click="goToMyTeam" title="进入我的团队主页">
@@ -57,15 +60,18 @@
           <span class="btn-subtitle">即时通讯</span>
         </div>
       </button>
-      <button @click="goToPublicForum" class="fixed-action-btn public-forum-btn" title="前往公共论坛">
+      <button @click="goToUsers" class="fixed-action-btn public-forum-btn" title="查看用户列表">
         <div class="btn-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
         </div>
         <div class="btn-text">
-          <span class="btn-title">公共论坛</span>
-          <span class="btn-subtitle">参与讨论</span>
+          <span class="btn-title">用户列表</span>
+          <span class="btn-subtitle">查看成员</span>
         </div>
       </button>
       <button v-if="hasTeam" class="fixed-action-btn my-team-btn" @click="goToMyTeam" title="进入我的团队主页">
@@ -110,14 +116,35 @@
       </button>
     </div>
 
-    <div v-if="userStore.role === 'admin'" class="admin-actions">
-      <button class="btn btn-primary" @click="openCreateTeam">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        新建团队
-      </button>
+    <div class="team-actions">
+      <template v-if="!hasTeam && !hasPendingRequest">
+        <button class="btn btn-primary" @click="openCreateTeam">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          {{ userStore.role === 'admin' ? '新建团队' : '申请创建团队' }}
+        </button>
+      </template>
+
+      <template v-else-if="hasPendingRequest">
+        <div class="pending-request-card">
+          <div class="pending-icon">⏳</div>
+          <div class="pending-info">
+            <span class="pending-title">团队创建申请审核中</span>
+            <span class="pending-desc">{{ pendingRequestInfo?.name || '您的申请' }}</span>
+            <span class="pending-time">提交时间: {{ formatTime(pendingRequestInfo?.create_time) }}</span>
+          </div>
+          <button class="btn btn-sm btn-secondary" @click="checkPendingStatus">刷新状态</button>
+        </div>
+      </template>
+
+      <template v-else-if="hasTeam">
+        <div class="has-team-info">
+          <span class="info-text">您已加入团队</span>
+          <button class="btn btn-secondary" @click="goToMyTeam">查看我的团队</button>
+        </div>
+      </template>
     </div>
 
     <div v-if="loading" class="loading">
@@ -289,11 +316,14 @@
               </svg>
               访问该小组主页
             </button>
-            <button class="btn btn-secondary btn-block" @click="goToPublicForum" style="margin-top: 8px;">
+            <button class="btn btn-secondary btn-block" @click="goToUsers" style="margin-top: 8px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
-              查看所有公开论坛
+              查看用户列表
             </button>
           </div>
 
@@ -322,7 +352,7 @@
     <div v-if="formPanelVisible" class="modal-overlay" style="background:rgba(0,0,0,0.6)!important;backdrop-filter:blur(4px);" @click.self="closeFormPanel">
       <div class="modal team-form-modal" style="background:var(--bg-card);">
         <div class="modal-header">
-          <h3>{{ isEditing ? '编辑团队' : '新建团队' }}</h3>
+          <h3>{{ isEditing ? '编辑团队' : (userStore.role === 'admin' ? '新建团队' : '申请创建团队') }}</h3>
           <button class="close-btn" @click="closeFormPanel">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -338,6 +368,14 @@
               <line x1="9" y1="9" x2="15" y2="15"/>
             </svg>
             {{ formError }}
+          </div>
+          <div v-if="!isEditing && userStore.role !== 'admin'" class="info-message">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span>普通用户创建团队需要管理员审核，审核通过后即可使用</span>
           </div>
           <div class="form-row logo-row">
             <div class="form-field">
@@ -460,7 +498,12 @@ const { success, error: notifyError, warning } = useNotification()
 const { confirm, confirmDanger } = useConfirm()
 
 const userStore = useUserStore()
-const hasTeam = computed(() => !!localStorage.getItem('team_id'))
+const hasTeam = computed(() => {
+  const teamId = userStore.team_id || localStorage.getItem('team_id')
+  return !!teamId && teamId !== 'null' && teamId !== 'undefined'
+})
+const hasPendingRequest = ref(false)
+const pendingRequestInfo = ref(null)
 
 const scrollY = ref(0)
 const showButtons = ref(false)
@@ -606,14 +649,57 @@ const goToTeamHome = (team) => {
 }
 
 const goToMyTeam = () => {
-  const teamId = localStorage.getItem('team_id')
+  const teamId = userStore.team_id || localStorage.getItem('team_id')
   if (teamId) {
     router.push({ name: 'TeamHome', params: { teamId } })
   }
 }
 
-const goToPublicForum = () => {
-  router.push('/forums')
+const formatTime = (timeStr) => {
+  if (!timeStr) return '-'
+  const date = new Date(timeStr)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const loadPendingRequest = async () => {
+  try {
+    const res = await fetch('/api/team/my-request', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    })
+    const data = await res.json()
+    if (data.code === 200 && data.data) {
+      const req = data.data
+      if (req.status === 'pending') {
+        hasPendingRequest.value = true
+        pendingRequestInfo.value = req
+      } else if (req.status === 'rejected') {
+        hasPendingRequest.value = false
+        pendingRequestInfo.value = req
+        warning(`您的团队创建申请被拒绝: ${req.reject_reason || '无原因'}`)
+      } else {
+        hasPendingRequest.value = false
+        pendingRequestInfo.value = null
+      }
+    } else {
+      hasPendingRequest.value = false
+    }
+  } catch (e) {
+    console.error('加载待审核申请失败:', e)
+  }
+}
+
+const checkPendingStatus = async () => {
+  await loadPendingRequest()
+}
+
+const goToUsers = () => {
+  router.push('/users')
 }
 
 const goToChat = () => {
@@ -621,10 +707,16 @@ const goToChat = () => {
 }
 
 const openCreateTeam = () => {
-  if (localStorage.getItem('team_id')) {
+  const teamId = userStore.team_id || localStorage.getItem('team_id')
+  if (teamId && teamId !== 'null' && teamId !== 'undefined') {
     warning('您已加入其他团队，如需创建新团队请先退出当前团队')
     return
   }
+  if (hasPendingRequest.value) {
+    warning('您已有待审核的团队创建申请，请等待管理员审核')
+    return
+  }
+
   isEditing.value = false
   formData.value = {
     name: '',
@@ -736,7 +828,13 @@ const saveTeam = async () => {
     }
 
     if (res.code === 200) {
-      success(isEditing.value ? '团队更新成功' : '团队创建成功')
+      if (isEditing.value) {
+        success('团队更新成功')
+      } else if (userStore.role === 'admin') {
+        success('团队创建成功')
+      } else {
+        success('团队创建申请已提交，请等待管理员审核')
+      }
       closeFormPanel()
       loadTeams()
     } else {
@@ -825,6 +923,7 @@ const formatDate = (date) => {
 onMounted(async () => {
   await loadTeams()
   await loadUsers()
+  await loadPendingRequest()
   window.addEventListener('scroll', handleScroll)
   checkCanScroll()
   const referer = document.referrer
@@ -1034,7 +1133,7 @@ onUnmounted(() => {
 }
 
 .action-btn.my-team-btn .btn-icon {
-  background: var(--info);
+  background: #3b82f6;
 }
 
 .action-btn.my-team-btn {
@@ -1223,10 +1322,66 @@ onUnmounted(() => {
   border-color: var(--primary);
 }
 
-.admin-actions {
+.team-actions {
   display: flex;
   gap: 12px;
+  align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.team-actions .has-team-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.team-actions .info-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.pending-request-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-radius: 12px;
+  border: 1px solid #f59e0b;
+}
+
+.pending-icon {
+  font-size: 32px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.pending-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pending-title {
+  font-weight: 600;
+  color: #92400e;
+  font-size: 15px;
+}
+
+.pending-desc {
+  color: #b45309;
+  font-size: 13px;
+}
+
+.pending-time {
+  color: #d97706;
+  font-size: 12px;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
 }
 
 .loading {
@@ -1921,12 +2076,31 @@ html.dark .modal {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 8px;
-  color: var(--danger);
+  color: #ef4444;
   font-size: 14px;
   margin-bottom: 16px;
 }
 
 .error-message svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.info-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  color: #3b82f6;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.info-message svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
@@ -2522,11 +2696,11 @@ html.dark .modal {
     justify-content: center;
   }
 
-  .admin-actions {
+  .team-actions {
     width: 100%;
   }
 
-  .admin-actions .btn {
+  .team-actions .btn {
     width: 100%;
     justify-content: center;
   }

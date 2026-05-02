@@ -118,8 +118,9 @@
           <p>您还未加入任何团队</p>
           <p class="empty-hint">请先在"团队"面板加入或创建团队</p>
         </div>
-        <div v-if="loading" class="skeleton-wrap">
-          <SkeletonLoader variant="table" :columns="4" :rows="5" :is-dark="document.documentElement.classList.contains('dark')" />
+        <div v-if="loading" class="loading">
+          <div class="spinner"></div>
+          <p>加载中...</p>
         </div>
         <div v-else>
           <div class="team-table" v-if="teams.length > 0">
@@ -321,6 +322,146 @@
         </div>
       </div>
 
+      <div v-if="showTeamRequestDetailModal" class="modal-overlay" @click.self="showTeamRequestDetailModal = false">
+        <div class="team-request-detail-modal">
+          <div class="detail-modal-header">
+            <h3>团队申请详情</h3>
+            <button class="close-btn" @click="showTeamRequestDetailModal = false">✕</button>
+          </div>
+
+          <div v-if="currentTeamRequest" class="detail-content">
+            <div class="detail-section">
+              <h4>团队信息</h4>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="label">团队名称</span>
+                  <span class="value team-name-lg" :style="{ color: currentTeamRequest.color }">{{ currentTeamRequest.name }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">团队颜色</span>
+                  <span class="color-preview" :style="{ backgroundColor: currentTeamRequest.color }"></span>
+                </div>
+                <div class="detail-item full">
+                  <span class="label">团队描述</span>
+                  <span class="value">{{ currentTeamRequest.description || '无' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <h4>申请人信息</h4>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="label">用户名</span>
+                  <span class="value">@{{ currentTeamRequest.username }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">真实姓名</span>
+                  <span class="value">{{ currentTeamRequest.real_name || '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">用户ID</span>
+                  <span class="value">#{{ currentTeamRequest.user_id }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">申请状态</span>
+                  <span class="status-badge pending">{{ currentTeamRequest.status === 'pending' ? '待审核' : currentTeamRequest.status === 'approved' ? '已批准' : '已拒绝' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <h4>时间信息</h4>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="label">提交时间</span>
+                  <span class="value">{{ formatTime(currentTeamRequest.create_time) }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">更新时间</span>
+                  <span class="value">{{ formatTime(currentTeamRequest.update_time) || '-' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-actions">
+              <button class="btn btn-success" @click="approveTeamRequest(currentTeamRequest); showTeamRequestDetailModal = false" :disabled="isProcessing">✓ 批准</button>
+              <button class="btn btn-danger" @click="rejectTeamRequest(currentTeamRequest); showTeamRequestDetailModal = false" :disabled="isProcessing">✕ 拒绝</button>
+              <button class="btn btn-secondary" @click="showTeamRequestDetailModal = false">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="activeTab === 'team-review'" class="tab-panel">
+        <div class="panel-header">
+          <h3>待审核团队</h3>
+          <div class="panel-actions">
+            <span class="badge" v-if="pendingTeams.length > 0">{{ pendingTeams.length }} 个待审核</span>
+            <button class="btn btn-sm btn-primary" @click="approveAllPendingTeams" :disabled="selectedTeamRequests.length === 0 || isProcessing">
+              批量批准 ({{ selectedTeamRequests.length }})
+            </button>
+            <button class="btn btn-sm btn-danger" @click="rejectSelectedTeams" :disabled="selectedTeamRequests.length === 0 || isProcessing">
+              批量拒绝 ({{ selectedTeamRequests.length }})
+            </button>
+            <button class="btn btn-sm btn-secondary" @click="loadPendingTeams">刷新</button>
+          </div>
+        </div>
+
+        <div v-if="loadingTeams" class="loading">
+          <div class="spinner"></div>
+          <p>加载中...</p>
+        </div>
+
+        <div v-else-if="pendingTeams.length === 0" class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p>暂无待审核的团队申请</p>
+        </div>
+
+        <div v-else class="review-list">
+          <div class="review-header-row">
+            <label class="checkbox-label">
+              <input type="checkbox" :checked="selectedTeamRequests.length === pendingTeams.length && pendingTeams.length > 0" @change="toggleSelectAllTeamRequests">
+              <span>全选</span>
+            </label>
+            <span class="col-applicant">申请人</span>
+            <span class="col-team-name">团队名称</span>
+            <span class="col-desc">描述</span>
+            <span class="col-time">提交时间</span>
+            <span class="col-actions">操作</span>
+          </div>
+
+          <div v-for="req in pendingTeams" :key="req.id" class="review-item" :class="{ selected: selectedTeamRequests.includes(req.id) }">
+            <label class="checkbox-label">
+              <input type="checkbox" :value="req.id" v-model="selectedTeamRequests">
+            </label>
+
+            <div class="applicant-info">
+              <div class="applicant-avatar">{{ (req.real_name || req.username || '?').charAt(0) }}</div>
+              <div class="applicant-details">
+                <span class="applicant-name">{{ req.real_name || '-' }}</span>
+                <span class="applicant-username">@{{ req.username }}</span>
+              </div>
+            </div>
+
+            <div class="team-name-cell">
+              <span class="team-badge" :style="{ backgroundColor: req.color + '20', color: req.color }">{{ req.name }}</span>
+            </div>
+
+            <div class="desc-cell">{{ req.description || '-' }}</div>
+            <div class="time-cell">{{ formatTime(req.create_time) }}</div>
+
+            <div class="action-buttons">
+              <button class="btn btn-sm btn-success" @click="approveTeamRequest(req)" :disabled="isProcessing">✓ 批准</button>
+              <button class="btn btn-sm btn-danger" @click="rejectTeamRequest(req)" :disabled="isProcessing">✕ 拒绝</button>
+              <button class="btn btn-sm btn-secondary" @click="viewTeamRequestDetail(req)">详情</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-if="activeTab === 'users'" class="tab-panel">
         <div class="panel-header">
           <h3>用户管理</h3>
@@ -403,8 +544,9 @@
           </button>
         </div>
         
-        <div v-if="loading" class="skeleton-wrap">
-          <SkeletonLoader variant="table" :columns="5" :rows="6" :is-dark="document.documentElement.classList.contains('dark')" />
+        <div v-if="loading" class="loading">
+          <div class="spinner"></div>
+          <p>加载中...</p>
         </div>
         <div v-else :class="compactView ? 'user-table' : 'user-cards'">
           <template v-if="compactView">
@@ -481,6 +623,12 @@
                       <line x1="9" y1="9" x2="15" y2="15"/>
                     </svg>
                   </button>
+                  <button class="action-btn-small reset-pwd" @click="handleResetPassword(user)" title="重置密码">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                  </button>
                   <button class="action-btn-small danger" @click="handleDeleteUser(user.id)" title="删除">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3,6 5,6 21,6"/>
@@ -552,6 +700,13 @@
                     </svg>
                     注销
                   </button>
+                  <button class="action-btn reset-pwd-btn" @click="handleResetPassword(user)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    重置密码
+                  </button>
                   <button v-if="userStore.username === 'admin' && user.username !== 'admin'" class="action-btn danger" @click="handleDeleteUser(user.id)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="3,6 5,6 21,6"/>
@@ -589,7 +744,7 @@
               <span class="backup-desc">立即生成当前数据库快照</span>
             </div>
           </div>
-          <div class="backup-card" @click="handleBackup">
+          <div class="backup-card" @click="handleDownloadDB">
             <div class="backup-icon green">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
@@ -598,7 +753,7 @@
             </div>
             <div class="backup-info">
               <span class="backup-name">本地备份</span>
-              <span class="backup-desc">导出数据库到本地文件</span>
+              <span class="backup-desc">导出数据库到本地文件 (.db)</span>
             </div>
           </div>
           <div class="backup-card import" @click="triggerImport">
@@ -611,10 +766,9 @@
             </div>
             <div class="backup-info">
               <span class="backup-name">本地还原</span>
-              <span class="backup-desc">从本地备份文件还原</span>
+              <span class="backup-desc">从本地备份文件还原 (.db)</span>
             </div>
           </div>
-          <input type="file" ref="importFileInput" accept=".json" style="display: none" @change="handleImport">
           <div class="backup-card" @click="handlePurge">
             <div class="backup-icon orange">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -655,6 +809,7 @@
             <div class="snapshot-item" v-for="snap in snapshots" :key="snap.filename">
               <div class="snapshot-info">
                 <span class="snapshot-name">{{ snap.name }}</span>
+                <span class="snapshot-type-badge" :class="snap.name === 'manual' ? 'manual' : 'auto'">{{ snap.name === 'manual' ? '手动' : '自动' }}</span>
                 <span class="snapshot-meta">
                   {{ formatFileSize(snap.size) }} · {{ formatDate(snap.created) }}
                 </span>
@@ -882,25 +1037,6 @@
             重置
           </button>
         </div>
-
-        <div v-if="exporting" class="export-progress">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: exportProgress + '%' }"></div>
-          </div>
-          <span class="progress-text">{{ exportProgress }}% {{ exportProgress < 30 ? '准备中...' : exportProgress < 70 ? '获取数据...' : exportProgress < 90 ? '生成文件...' : '完成！' }}</span>
-        </div>
-
-        <div v-if="exportHistory.length > 0 && !exporting" class="export-history">
-          <h4 class="history-title">📋 导出历史</h4>
-          <div class="history-list">
-            <div v-for="(record, index) in exportHistory" :key="record.time" class="history-item">
-              <span class="history-format">{{ record.format }}</span>
-              <span class="history-fields">{{ record.fields }} 字段</span>
-              <span class="history-size">{{ record.size }}</span>
-              <span class="history-time">{{ formatExportTime(record.time) }}</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div v-if="activeTab === 'import'" class="tab-panel">
@@ -983,6 +1119,104 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showRejectModal" class="modal-overlay" style="background:rgba(0,0,0,0.6)!important;backdrop-filter:blur(4px);" @click.self="showRejectModal = false">
+      <div class="modal reject-modal" style="background:var(--bg-card);">
+        <div class="modal-header">
+          <h3>{{ rejectIsBatch ? '批量拒绝团队申请' : '拒绝团队申请' }}</h3>
+          <button class="close-btn" @click="showRejectModal = false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="reject-warning" v-if="!rejectIsBatch && rejectTarget">
+            <div class="reject-warning-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+            </div>
+            <p>确定拒绝「<strong>{{ rejectTarget.name }}</strong>」的团队创建申请？</p>
+          </div>
+          <div class="reject-warning" v-else-if="rejectIsBatch">
+            <div class="reject-warning-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+            </div>
+            <p>确定批量拒绝 <strong>{{ selectedTeamRequests.length }}</strong> 个团队创建申请？</p>
+          </div>
+          <div class="reject-reason-field">
+            <label>拒绝原因<span class="optional-tag">可选</span></label>
+            <textarea
+              v-model="rejectReason"
+              placeholder="请输入拒绝原因，将通知申请者..."
+              rows="3"
+              class="reject-reason-input"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" @click="showRejectModal = false">取消</button>
+          <button class="btn-danger-solid" @click="confirmReject" :disabled="isProcessing">
+            {{ isProcessing ? '处理中...' : '确认拒绝' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showResetPwdModal" class="modal-overlay" style="background:rgba(0,0,0,0.6)!important;backdrop-filter:blur(4px);" @click.self="showResetPwdModal = false">
+      <div class="modal reject-modal" style="background:var(--bg-card);">
+        <div class="modal-header">
+          <h3>密码重置成功</h3>
+          <button class="close-btn" @click="showResetPwdModal = false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="reset-pwd-info">
+            <div class="reset-pwd-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <p class="reset-pwd-desc">用户「<strong>{{ resetPwdUser?.real_name || resetPwdUser?.username }}</strong>」的密码已重置</p>
+          </div>
+          <div class="reset-pwd-result">
+            <label>新密码</label>
+            <div class="reset-pwd-value-row">
+              <code class="reset-pwd-code">{{ resetPwdResult }}</code>
+              <button class="copy-pwd-btn" @click="copyNewPassword" title="复制密码">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <p class="reset-pwd-hint">请将新密码告知该用户，此密码仅显示一次</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" @click="showResetPwdModal = false">关闭</button>
+          <button class="btn-primary" @click="copyNewPassword">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            复制密码
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -992,11 +1226,23 @@ import { useRouter } from 'vue-router'
 import { useNotification } from '../stores/notification'
 import { useUserStore } from '../stores/user'
 import { useConfirm } from '../utils/confirm'
-import { categoryListAPI, productListAPI, categoryAddAPI, categoryUpdateAPI, categoryDeleteAPI, productAddAPI, productUpdateAPI, productDeleteAPI, exportAPI, getOperationLog, getPendingUsersAPI, approveUserAPI, rejectUserAPI, getTeamsAPI, deleteTeamAPI, updateTeamAPI, createTeamAPI, setAdminAPI, removeAdminAPI, setUserTeamAPI, getUsersListAPI, deleteLogAPI, clearLogsAPI, clearOldLogsAPI, batchApproveUsersAPI, batchRejectUsersAPI, getRegistrationModeAPI, setRegistrationModeAPI, deactivateUserAdminAPI, deleteUserAdminAPI, uploadTeamLogoAPI, uploadTeamBgAPI, createBackupAPI, getSnapshotsAPI, getSnapshotSettingsAPI, setSnapshotSettingsAPI, createSnapshotAPI, restoreSnapshotAPI, downloadSnapshotAPI, deleteSnapshotAPI, clearDataAPI, purgeDataAPI } from '../api'
+import { categoryListAPI, productListAPI, categoryAddAPI, categoryUpdateAPI, categoryDeleteAPI, productAddAPI, productUpdateAPI, productDeleteAPI, exportAPI, getOperationLog, getPendingUsersAPI, approveUserAPI, rejectUserAPI, getTeamsAPI, deleteTeamAPI, updateTeamAPI, createTeamAPI, setAdminAPI, removeAdminAPI, setUserTeamAPI, getUsersListAPI, deleteLogAPI, clearLogsAPI, clearOldLogsAPI, batchApproveUsersAPI, batchRejectUsersAPI, getRegistrationModeAPI, setRegistrationModeAPI, deactivateUserAdminAPI, deleteUserAdminAPI, resetPasswordAPI, uploadTeamLogoAPI, uploadTeamBgAPI, createBackupAPI, getSnapshotsAPI, getSnapshotSettingsAPI, setSnapshotSettingsAPI, createSnapshotAPI, restoreSnapshotAPI, downloadSnapshotAPI, deleteSnapshotAPI, clearDataAPI, purgeDataAPI, bloggerListAPI } from '../api'
 import ImportPanel from '../components/ImportPanel.vue'
-import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const notification = useNotification()
+
+const formatTime = (timeStr) => {
+  if (!timeStr) return '-'
+  const date = new Date(timeStr)
+  if (isNaN(date.getTime())) return timeStr
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 const userStore = useUserStore()
 const router = useRouter()
 const { confirm, confirmDanger, confirmWarning } = useConfirm()
@@ -1005,6 +1251,7 @@ const tabs = [
   { key: 'category', name: '分类管理', icon: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>' },
   { key: 'product', name: '产品管理', icon: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>' },
   { key: 'team', name: '团队管理', icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
+  { key: 'team-review', name: '团队审核', icon: '<path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>' },
   { key: 'users', name: '用户审核', icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
   { key: 'import', name: '批量导入', icon: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/>' },
   { key: 'backup', name: '数据库管理', icon: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>' },
@@ -1022,9 +1269,20 @@ const teams = ref([])
 const teamDetailVisible = ref(false)
 const selectedTeam = ref(null)
 const loading = ref(false)
+const loadingTeams = ref(false)
+const isProcessing = ref(false)
+
+const pendingTeams = ref([])
+const selectedTeamRequests = ref([])
+const showTeamRequestDetailModal = ref(false)
+const currentTeamRequest = ref(null)
+const showRejectModal = ref(false)
+const rejectTarget = ref(null)
+const rejectReason = ref('')
+const rejectIsBatch = ref(false)
 const snapshots = ref([])
 const maxSnapshots = 10
-const backupInterval = ref(604800000)
+const backupInterval = ref(parseInt(localStorage.getItem('snapshot_backup_interval')) || 86400000)
 
 const selectedUsers = ref([])
 const compactView = ref(false)
@@ -1055,25 +1313,6 @@ const exportFields = ref([
 
 const selectedFieldCount = computed(() => exportFields.value.filter(f => f.selected).length)
 const selectedFieldNames = computed(() => exportFields.value.filter(f => f.selected).map(f => f.label).join('、'))
-const exporting = ref(false)
-const exportProgress = ref(0)
-const exportHistory = ref(JSON.parse(localStorage.getItem('orange_export_history') || '[]'))
-
-const saveExportHistory = (record) => {
-  const history = [record, ...exportHistory.value].slice(0, 10)
-  exportHistory.value = history
-  localStorage.setItem('orange_export_history', JSON.stringify(history))
-}
-
-const formatExportTime = (timestamp) => {
-  const date = new Date(timestamp)
-  const now = Date.now()
-  const diff = now - timestamp
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前'
-  if (diff < 86400000) return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
 
 const selectAllFields = () => {
   exportFields.value.forEach(f => f.selected = true)
@@ -1237,6 +1476,143 @@ const loadTeams = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadPendingTeams = async () => {
+  loadingTeams.value = true
+  try {
+    const token = localStorage.getItem('token')
+    const res = await fetch('/api/admin/teams/pending', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const data = await res.json()
+    if (data.code === 200) {
+      pendingTeams.value = data.data || []
+    }
+  } catch (error) {
+    console.error('加载待审核团队失败', error)
+    notification.error('加载待审核团队失败')
+  } finally {
+    loadingTeams.value = false
+  }
+}
+
+const toggleSelectAllTeamRequests = (e) => {
+  if (e.target.checked) {
+    selectedTeamRequests.value = pendingTeams.value.map(r => r.id)
+  } else {
+    selectedTeamRequests.value = []
+  }
+}
+
+const approveTeamRequest = async (req) => {
+  if (!await confirm(`确定批准「${req.name}」团队的创建申请？`)) return
+
+  isProcessing.value = true
+  try {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`/api/admin/teams/${req.id}/approve`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const data = await res.json()
+    if (data.code === 200) {
+      notification.success(`已批准「${req.name}」团队`)
+      loadPendingTeams()
+      loadTeams()
+    } else {
+      notification.error(data.message || '操作失败')
+    }
+  } catch (error) {
+    notification.error('操作失败')
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+const rejectTeamRequest = async (req) => {
+  rejectTarget.value = req
+  rejectReason.value = ''
+  rejectIsBatch.value = false
+  showRejectModal.value = true
+}
+
+const confirmReject = async () => {
+  isProcessing.value = true
+  try {
+    const token = localStorage.getItem('token')
+    if (rejectIsBatch.value) {
+      for (const id of selectedTeamRequests.value) {
+        await fetch(`/api/admin/teams/${id}/reject`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ reason: rejectReason.value || '' })
+        })
+      }
+      notification.success(`已批量拒绝 ${selectedTeamRequests.value.length} 个团队申请`)
+      selectedTeamRequests.value = []
+      loadPendingTeams()
+    } else {
+      const req = rejectTarget.value
+      const res = await fetch(`/api/admin/teams/${req.id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: rejectReason.value || '' })
+      })
+      const data = await res.json()
+      if (data.code === 200) {
+        notification.success(`已拒绝「${req.name}」团队的创建申请`)
+        loadPendingTeams()
+      } else {
+        notification.error(data.message || '操作失败')
+      }
+    }
+  } catch (error) {
+    notification.error('操作失败')
+  } finally {
+    isProcessing.value = false
+    showRejectModal.value = false
+  }
+}
+
+const approveAllPendingTeams = async () => {
+  if (!await confirm(`确定批量批准 ${selectedTeamRequests.value.length} 个团队创建申请？`)) return
+
+  isProcessing.value = true
+  try {
+    const token = localStorage.getItem('token')
+    for (const id of selectedTeamRequests.value) {
+      await fetch(`/api/admin/teams/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+    }
+    notification.success(`已批量批准 ${selectedTeamRequests.value.length} 个团队`)
+    selectedTeamRequests.value = []
+    loadPendingTeams()
+    loadTeams()
+  } catch (error) {
+    notification.error('批量操作失败')
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+const rejectSelectedTeams = async () => {
+  rejectReason.value = ''
+  rejectIsBatch.value = true
+  showRejectModal.value = true
+}
+
+const viewTeamRequestDetail = (req) => {
+  currentTeamRequest.value = req
+  showTeamRequestDetailModal.value = true
 }
 
 const getTeamMembers = (teamId) => {
@@ -1470,6 +1846,49 @@ const handleDeleteUser = async (id) => {
   }
 }
 
+const showResetPwdModal = ref(false)
+const resetPwdUser = ref(null)
+const resetPwdResult = ref('')
+
+const handleResetPassword = async (user) => {
+  if (!await confirmWarning(`确定重置用户「${user.real_name || user.username}」的密码？将随机生成6位新密码。`)) return
+  try {
+    const data = await resetPasswordAPI(user.id)
+    if (data.code === 200) {
+      resetPwdUser.value = user
+      resetPwdResult.value = data.data?.new_password || ''
+      showResetPwdModal.value = true
+      loadLogs()
+    } else {
+      notification.error(data.message || '重置失败')
+    }
+  } catch (error) {
+    notification.error('重置密码失败')
+  }
+}
+
+const copyNewPassword = () => {
+  if (!resetPwdResult.value) return
+  const text = resetPwdResult.value
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.left = '-9999px'
+  ta.style.top = '-9999px'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.focus()
+  ta.select()
+  ta.setSelectionRange(0, text.length)
+  try {
+    document.execCommand('copy')
+    notification.success('新密码已复制到剪贴板: ' + text)
+  } catch {
+    notification.error('复制失败，请手动复制: ' + text)
+  }
+  document.body.removeChild(ta)
+}
+
 const editTeam = (team) => {
   formData.value = {
     name: team.name,
@@ -1612,14 +2031,36 @@ const handleSetUserTeam = async (userId, teamId) => {
 }
 
 const deleteTeam = async (team) => {
-  if (!await confirmDanger(`确定删除团队【${team.name}】？删除后成员将脱离该团队。`)) return
+  if (!await confirmDanger(`确定删除团队【${team.name}】？`)) return
+  
   try {
     const res = await deleteTeamAPI(team.id)
+    
     if (res.code === 200) {
       notification.success('团队已删除')
       loadTeams()
       loadAllUsers()
       loadLogs()
+    } else if (res.code === 400 && res.member_count > 0) {
+      const forceConfirm = await confirmDanger(
+        `⚠️ 该团队下还有 ${res.member_count} 名成员！` + '\n\n' +
+        `是否强制删除？` + '\n' +
+        `（团队成员将自动脱离该团队）`,
+        '强制删除',
+        '#ff4757'
+      )
+      
+      if (forceConfirm) {
+        const forceRes = await deleteTeamAPI(team.id, true)
+        if (forceRes.code === 200) {
+          notification.success(`团队已强制删除，已移除 ${res.member_count} 名成员`)
+          loadTeams()
+          loadAllUsers()
+          loadLogs()
+        } else {
+          notification.error(forceRes.message || '强制删除失败')
+        }
+      }
     } else {
       notification.error(res.message || '删除失败')
     }
@@ -1765,54 +2206,160 @@ const deleteItem = async (type, item) => {
 }
 
 const handleExport = async (type) => {
-  exporting.value = true
-  exportProgress.value = 10
   try {
     const selectedFields = exportFields.value.filter(f => f.selected).map(f => f.key).join(',')
-    exportProgress.value = 30
-
     const res = await exportAPI(type, selectedFields)
-    exportProgress.value = 70
-
     const blob = new Blob([res], {
       type: type === 'json' ? 'application/json' : type === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv'
     })
-    const fileSize = (blob.size / 1024).toFixed(1)
-    exportProgress.value = 90
-
+    if (blob.size < 100) {
+      notification.error('导出失败，数据为空')
+      return
+    }
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    const timestamp = new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '-')
-    a.download = `orange_export_${timestamp}.${type}`
+    a.download = `blogger_export_${Date.now()}.${type === 'xlsx' ? 'xlsx' : type}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     window.URL.revokeObjectURL(url)
-
-    exportProgress.value = 100
-
-    saveExportHistory({
-      time: Date.now(),
-      format: type.toUpperCase(),
-      fields: selectedFieldCount.value,
-      size: `${fileSize}KB`
-    })
-
-    setTimeout(() => { exporting.value = false; exportProgress.value = 0 }, 600)
-    notification.success('导出成功！', `已导出 ${selectedFieldCount.value} 个字段 (${fileSize}KB)`)
+    notification.success('导出成功！', `已导出 ${selectedFieldCount.value} 个字段，${bloggerCount.value} 条数据`)
   } catch (error) {
-    exporting.value = false
-    exportProgress.value = 0
     console.error('导出失败:', error)
     notification.error('导出失败，请重试')
   }
 }
 
-const importFileInput = ref(null)
-
 const triggerImport = () => {
-  importFileInput.value.click()
+  console.log('[终极方案] 🚀 开始创建全新文件选择器...')
+
+  const newInput = document.createElement('input')
+  newInput.type = 'file'
+  newInput.accept = '.db,.sqlite,.sqlite3'
+  newInput.style.display = 'none'
+
+  console.log('[终极方案] ✅ 创建input元素，accept属性:', newInput.accept)
+
+  newInput.addEventListener('change', function(event) {
+    console.log('[终极方案] 📁 文件已选择:', event.target.files[0]?.name)
+    handleImportDB(event)
+    document.body.removeChild(newInput)
+  })
+
+  document.body.appendChild(newInput)
+
+  console.log('[终极方案] ⚡ 触发文件选择器...')
+
+  setTimeout(() => {
+    newInput.click()
+  }, 100)
+}
+
+const handleDownloadDB = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      notification.error('未登录，请先登录')
+      return
+    }
+
+    notification.info('正在准备下载数据库文件...')
+
+    const response = await fetch('/api/admin/backup/download-db', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || '下载失败')
+    }
+
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    
+    const contentDisposition = response.headers.get('content-disposition')
+    let filename = 'orange_backup.db'
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename=(.+)/)
+      if (match) filename = match[1].replace(/"/g, '')
+    }
+    
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+
+    notification.success('数据库文件下载成功！')
+    
+    database.AddLog('备份系统', '下载数据库', userStore.username, `下载完整数据库文件: ${filename}`)
+  } catch (error) {
+    console.error('下载数据库失败:', error)
+    notification.error(error.message || '数据库文件下载失败')
+  }
+}
+
+const handleImportDB = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  const validExtensions = ['.db', '.sqlite', '.sqlite3']
+  const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+  if (!validExtensions.includes(fileExt)) {
+    notification.error('请选择正确的数据库文件格式 (.db, .sqlite, .sqlite3)')
+    event.target.value = ''
+    return
+  }
+
+  if (file.size > 500 * 1024 * 1024) {
+    notification.error('文件过大，最大支持500MB')
+    event.target.value = ''
+    return
+  }
+
+  if (!await confirmDanger('⚠️ 警告：还原操作将覆盖当前所有数据！\n\n原数据库将自动备份为 .pre_restore_ 文件\n\n确定要继续吗？')) {
+    event.target.value = ''
+    return
+  }
+
+  try {
+    notification.info('正在上传并验证数据库文件...')
+
+    const formData = new FormData()
+    formData.append('database', file)
+
+    const token = localStorage.getItem('token')
+    const response = await fetch('/api/admin/backup/restore-db', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    })
+
+    const result = await response.json()
+
+    if (result.code === 200) {
+      notification.success(result.message || '还原成功！')
+      
+      setTimeout(() => {
+        window.location.reload()
+      }, 3000)
+    } else {
+      notification.error(result.message || '还原失败')
+    }
+  } catch (error) {
+    console.error('还原失败:', error)
+    notification.error('还原失败，请检查文件是否为有效的SQLite数据库')
+  } finally {
+    event.target.value = ''
+  }
 }
 
 const handleBackup = async () => {
@@ -1839,8 +2386,15 @@ const loadSnapshots = async () => {
     if (userStore.username === 'admin') {
       const settingsData = await getSnapshotSettingsAPI()
       if (settingsData.code === 200) {
-        const intervalHours = settingsData.data.backup_interval || 24
-        backupInterval.value = intervalHours * 3600000
+        const savedInterval = localStorage.getItem('snapshot_backup_interval')
+        if (savedInterval) {
+          backupInterval.value = parseInt(savedInterval)
+        } else {
+          // 后端返回的是小时数，转换为毫秒
+          const hours = settingsData.data.backup_interval || 24
+          backupInterval.value = hours * 3600000
+          localStorage.setItem('snapshot_backup_interval', backupInterval.value.toString())
+        }
       }
     }
   } catch (error) {
@@ -1850,7 +2404,14 @@ const loadSnapshots = async () => {
 
 const handleUpdateBackupInterval = async () => {
   try {
-    const intervalHours = Math.round(backupInterval.value / 3600000)
+    // 确保保存的是毫秒值
+    const ms = parseInt(backupInterval.value)
+    if (!ms || ms <= 0) {
+      notification.error('无效的间隔值')
+      return
+    }
+    localStorage.setItem('snapshot_backup_interval', ms.toString())
+    const intervalHours = Math.round(ms / 3600000)
     const data = await setSnapshotSettingsAPI({
       auto_backup: true,
       backup_interval: intervalHours,
@@ -1883,7 +2444,7 @@ const handleCreateSnapshot = async () => {
 }
 
 const handleRestoreSnapshot = async (snap) => {
-  if (!await confirmDanger(`确定要还原快照 "${snap.name}" 吗？当前所有数据将被覆盖！`)) return
+  if (!await confirm({ title: '确认还原', message: `确定要还原快照 "${snap.name}" 吗？当前所有数据将被覆盖！`, type: 'warning', confirmText: '还原' })) return
   try {
     const data = await restoreSnapshotAPI(snap.filename)
     if (data.code === 200) {
@@ -1950,36 +2511,6 @@ const handleClearData = async () => {
   }
 }
 
-const handleImport = async (event) => {
-  const file = event.target.files[0]
-  if (!file) return
-
-  if (!await confirmDanger('警告：还原操作将覆盖当前所有数据，且不可恢复！确定要继续吗？')) {
-    event.target.value = ''
-    return
-  }
-
-  try {
-    const text = await file.text()
-    const data = JSON.parse(text)
-
-    const result = await createBackupAPI(data)
-    if (result.code === 200) {
-      notification.success('还原成功！页面将刷新...')
-      setTimeout(() => {
-        window.location.reload()
-      }, 1500)
-    } else {
-      notification.error(result.message || '还原失败')
-    }
-  } catch (error) {
-    console.error('还原失败:', error)
-    notification.error('还原失败，请检查文件格式是否正确')
-  } finally {
-    event.target.value = ''
-  }
-}
-
 const handlePurge = async () => {
   if (!await confirmDanger('警告：将永久删除30天前的所有已删除记录，此操作不可恢复！\n\n是否继续？')) return
   try {
@@ -2024,10 +2555,10 @@ const formatDate = (date) => {
 }
 
 const formatInterval = (ms) => {
-  if (!ms) return '未知'
-  const hours = ms / 3600000
+  if (!ms || ms <= 0) return '未知'
+  const hours = Math.round(ms / 3600000)
   if (hours < 24) return `${hours}小时`
-  const days = hours / 24
+  const days = Math.round(hours / 24)
   return `${days}天`
 }
 
@@ -2056,7 +2587,24 @@ watch(activeTab, (newTab) => {
     loadTeams()
     loadAllUsers()
   }
+  if (newTab === 'team-review') {
+    loadPendingTeams()
+  }
+  if (newTab === 'export') {
+    loadBloggerCount()
+  }
 })
+
+const loadBloggerCount = async () => {
+  try {
+    const res = await bloggerListAPI({ pageSize: 1 })
+    if (res.code === 200 && res.data) {
+      bloggerCount.value = res.data.total || res.data.list?.length || 0
+    }
+  } catch (e) {
+    console.error('加载博主数量失败', e)
+  }
+}
 
 const formatFileSize = (bytes) => {
   if (bytes < 1024) return bytes + ' B'
@@ -2476,6 +3024,13 @@ const formatFileSize = (bytes) => {
   gap: 4px;
 }
 
+.snapshot-info > * {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .snapshot-name {
   font-size: 14px;
   font-weight: 600;
@@ -2485,6 +3040,24 @@ const formatFileSize = (bytes) => {
 .snapshot-meta {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.snapshot-type-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.snapshot-type-badge.auto {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.snapshot-type-badge.manual {
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
 }
 
 .snapshot-actions {
@@ -2966,79 +3539,6 @@ const formatFileSize = (bytes) => {
   color: var(--primary);
 }
 
-.export-progress {
-  margin-top: 20px;
-  padding: 16px;
-  background: rgba(249, 115, 22, 0.04);
-  border: 1px solid rgba(249, 115, 22, 0.12);
-  border-radius: 12px;
-}
-
-.progress-bar {
-  height: 6px;
-  background: var(--border-color);
-  border-radius: 3px;
-  overflow: hidden;
-  margin-bottom: 10px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #f97316, #fb923c);
-  border-radius: 3px;
-  transition: width 0.3s ease-out;
-}
-
-.progress-text {
-  font-size: 13px;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.export-history {
-  margin-top: 20px;
-  padding: 16px;
-  background: var(--bg-secondary);
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-}
-
-.history-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 12px;
-}
-
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.history-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--bg-card);
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.history-format {
-  padding: 2px 8px;
-  background: rgba(34, 197, 94, 0.1);
-  color: #22c55e;
-  border-radius: 4px;
-  font-weight: 600;
-  font-size: 11px;
-}
-
-.history-fields { color: var(--text-secondary); }
-.history-size { color: var(--text-muted); margin-left: auto; }
-.history-time { color: var(--text-muted); font-size: 12px; }
-
 .log-list {
   display: flex;
   flex-direction: column;
@@ -3331,6 +3831,247 @@ const formatFileSize = (bytes) => {
   box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
 }
 
+.reject-modal {
+  max-width: 460px;
+}
+
+.reject-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(255, 75, 43, 0.08), rgba(255, 65, 108, 0.06));
+  border: 1px solid rgba(255, 75, 43, 0.15);
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.reject-warning-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #ff4b2b, #ff416c);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reject-warning-icon svg {
+  width: 20px;
+  height: 20px;
+  color: white;
+}
+
+.reject-warning p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.reject-warning strong {
+  color: var(--text-primary);
+}
+
+.reject-reason-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reject-reason-field label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.optional-tag {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.reject-reason-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-dark);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+  transition: all 0.3s ease;
+  line-height: 1.5;
+}
+
+.reject-reason-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+  background: var(--bg-card);
+}
+
+.reject-reason-input::placeholder {
+  color: var(--text-muted);
+}
+
+.btn-danger-solid {
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #ff4b2b, #ff416c);
+  border: none;
+  color: white;
+}
+
+.btn-danger-solid:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 65, 108, 0.3);
+}
+
+.btn-danger-solid:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-btn-small.reset-pwd {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.action-btn-small.reset-pwd:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.action-btn.reset-pwd-btn {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.action-btn.reset-pwd-btn:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.reset-pwd-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(34, 197, 94, 0.06));
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.reset-pwd-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reset-pwd-icon svg {
+  width: 22px;
+  height: 22px;
+  color: white;
+}
+
+.reset-pwd-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.reset-pwd-desc strong {
+  color: var(--text-primary);
+}
+
+.reset-pwd-result {
+  margin-bottom: 12px;
+}
+
+.reset-pwd-result label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.reset-pwd-value-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reset-pwd-code {
+  flex: 1;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 4px;
+  color: var(--primary);
+  background: var(--bg-dark);
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 16px;
+  text-align: center;
+  user-select: all;
+}
+
+.copy-pwd-btn {
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.copy-pwd-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.copy-pwd-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(249, 115, 22, 0.06);
+}
+
+.reset-pwd-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  padding: 8px 12px;
+  background: rgba(245, 158, 11, 0.06);
+  border-radius: 6px;
+  border-left: 3px solid #f59e0b;
+}
+
 .loading {
   text-align: center;
   padding: 60px 20px;
@@ -3353,10 +4094,6 @@ const formatFileSize = (bytes) => {
 
 .loading p {
   color: var(--text-muted);
-}
-
-.skeleton-wrap {
-  padding: 16px;
 }
 
 .team-table {
@@ -3490,6 +4227,230 @@ const formatFileSize = (bytes) => {
   }
 }
 
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-header-row {
+  display: grid;
+  grid-template-columns: 50px 180px 150px 1fr 160px 200px;
+  gap: 16px;
+  padding: 14px 20px;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.review-item {
+  display: grid;
+  grid-template-columns: 50px 180px 150px 1fr 160px 200px;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 20px;
+  background: var(--bg-primary);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.review-item:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+.review-item.selected {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.applicant-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.applicant-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.applicant-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.applicant-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.applicant-username {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.team-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.team-request-detail-modal {
+  width: 90%;
+  max-width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.detail-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.detail-modal-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.detail-content {
+  padding: 24px;
+}
+
+.detail-section {
+  margin-bottom: 24px;
+}
+
+.detail-section h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-item.full {
+  grid-column: span 2;
+}
+
+.detail-item .label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.detail-item .value {
+  font-size: 15px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.team-name-lg {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+.color-preview {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 2px solid var(--border-color);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.status-badge.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+  margin-top: 8px;
+}
+
+.desc-cell {
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.time-cell {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
 .empty-state {
   text-align: center;
   padding: 80px 20px;
@@ -3520,8 +4481,31 @@ const formatFileSize = (bytes) => {
 .panel-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.panel-actions .btn {
+  white-space: nowrap;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.panel-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.panel-actions .badge {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .registration-control {

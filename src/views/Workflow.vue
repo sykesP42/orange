@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="workflow-page">
     <div class="page-header">
       <div class="header-content">
@@ -539,12 +539,12 @@ onMounted(() => {
 }
 
 .delete-btn:hover {
-  border-color: var(--danger);
+  border-color: #ef4444;
   background: rgba(239, 68, 68, 0.05);
 }
 
 .delete-btn:hover svg {
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .rule-body {

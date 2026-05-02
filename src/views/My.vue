@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="my-page">
     <div class="page-header">
       <h1>我的</h1>
@@ -66,11 +66,16 @@
                   <span class="hint">用户名不可修改</span>
                 </div>
                 <div class="form-group">
-                  <label>真实姓名</label>
-                  <input type="text" v-model="form.real_name" placeholder="请输入真实姓名" />
+                  <label>人员编号</label>
+                  <input type="text" :value="userStore.user_code ? userStore.user_code + (userStore.invited_by ? '|' + userStore.invited_by : '|00000') : '未分配'" disabled />
+                  <span class="hint">系统自动分配，格式：S+五位数字|邀请者编码</span>
                 </div>
               </div>
               <div class="form-row">
+                <div class="form-group">
+                  <label>真实姓名</label>
+                  <input type="text" v-model="form.real_name" placeholder="请输入真实姓名" />
+                </div>
                 <div class="form-group">
                   <label>邮箱</label>
                   <input type="email" v-model="form.email" placeholder="请输入邮箱" />
@@ -146,6 +151,138 @@
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 邀请与配额 -->
+    <div class="invite-section">
+      <div class="section-header">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="8.5" cy="7" r="4"/>
+            <line x1="20" y1="8" x2="20" y2="14"/>
+            <line x1="23" y1="11" x2="17" y2="11"/>
+          </svg>
+          邀请与配额
+        </h2>
+      </div>
+
+      <div class="invite-cards">
+        <div class="invite-card code-card">
+          <div class="invite-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="8.5" cy="7" r="4"/>
+              <line x1="20" y1="8" x2="20" y2="14"/>
+              <line x1="23" y1="11" x2="17" y2="11"/>
+            </svg>
+          </div>
+          <div class="invite-card-info">
+            <span class="invite-card-label">我的身份编码</span>
+            <span class="invite-card-value code-value">{{ fullUserCode }}</span>
+            <span class="code-hint">{{ userStore.invited_by ? '由 ' + userStore.invited_by + ' 邀请' : '初始用户' }}</span>
+            <div v-if="currentInviteCode" class="invite-code-section">
+              <span class="invite-code-label">当前邀请码</span>
+              <span class="invite-code-value">{{ currentInviteCode.code }}</span>
+              <span class="invite-code-status" :class="{ 'used': currentInviteCode.used }">
+                {{ currentInviteCode.used ? '已使用' : '可使用' }}
+              </span>
+            </div>
+          </div>
+          <div class="code-actions">
+            <button class="btn-copy" @click="copyInviteCode">复制编码</button>
+            <button class="btn-copy btn-link" @click="copyInviteLink">复制链接</button>
+            <button class="btn-copy btn-generate" @click="generateInviteCode" :disabled="generating">
+              {{ generating ? '生成中...' : (currentInviteCode && !currentInviteCode.used ? '重新生成' : '生成邀请码') }}
+            </button>
+          </div>
+        </div>
+
+        <div class="invite-card">
+          <div class="invite-card-icon quota-icon" :class="{ 'quota-warning-icon': bloggerAddStats.remaining <= 2, 'quota-full-icon': bloggerAddStats.remaining === 0 }">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20V10"/>
+              <path d="M18 20V4"/>
+              <path d="M6 20v-4"/>
+            </svg>
+          </div>
+          <div class="invite-card-info">
+            <span class="invite-card-label">博主添加配额（半月）</span>
+            <span class="invite-card-value" :class="{ 'quota-warning-text': bloggerAddStats.remaining <= 2, 'quota-full-text': bloggerAddStats.remaining === 0 }">{{ bloggerAddStats.remaining }} / {{ bloggerAddStats.limit }}</span>
+            <span class="quota-hint" v-if="bloggerAddStats.remaining <= 2">⚠️ 配额即将用完</span>
+          </div>
+          <div class="quota-bar">
+            <div class="quota-bar-fill" :style="{ width: ((bloggerAddStats.limit - bloggerAddStats.remaining) / bloggerAddStats.limit * 100) + '%' }" :class="{ 'quota-warning': bloggerAddStats.remaining <= 2, 'quota-full': bloggerAddStats.remaining === 0 }"></div>
+          </div>
+        </div>
+
+        <div class="invite-card" v-if="invitedUsers.length > 0">
+          <div class="invite-card-icon invited-users-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+          <div class="invite-card-info">
+            <span class="invite-card-label">我邀请的用户</span>
+            <div class="invited-users-list">
+              <div v-for="user in invitedUsers" :key="user.id" class="invited-user-item">
+                <span class="invited-user-name">{{ user.real_name || user.username }}</span>
+                <span class="invited-user-code">{{ user.user_code }}</span>
+                <span class="invited-user-time">{{ formatDateTime(user.create_time) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="invite-card" v-if="userStore.invited_by">
+          <div class="invite-card-icon invited-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+          <div class="invite-card-info">
+            <span class="invite-card-label">我的邀请人</span>
+            <span class="invite-card-value">{{ userStore.invited_by }}</span>
+          </div>
+        </div>
+
+        <div class="invite-card invite-records-card" v-if="inviteCodeRecords.length > 0">
+          <div class="invite-card-icon records-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+          </div>
+          <div class="invite-card-info">
+            <span class="invite-card-label">邀请码使用记录</span>
+            <div class="invite-records-list">
+              <div v-for="record in inviteCodeRecords" :key="record.id" class="invite-record-item">
+                <div class="record-code-row">
+                  <span class="record-code">{{ record.code }}</span>
+                  <span class="record-status" :class="{ 'used': record.used, 'available': !record.used }">
+                    {{ record.used ? '已使用' : '可使用' }}
+                  </span>
+                </div>
+                <div class="record-detail-row">
+                  <span class="record-time">生成于 {{ formatDateTime(record.create_time) }}</span>
+                  <template v-if="record.used && record.used_by_name">
+                    <span class="record-used-by">→ {{ record.used_by_name }}（{{ record.used_by_code }}）使用于 {{ formatDateTime(record.used_time) }}</span>
+                  </template>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -234,7 +371,7 @@
           <input 
             v-model="searchQuery" 
             type="text" 
-            placeholder="搜索博主名称、平台账号、标签..." 
+            placeholder="搜索博主名称、拼音、平台账号、标签..." 
             class="search-input"
           />
         </div>
@@ -364,8 +501,9 @@ import { useRouter } from 'vue-router'
 import { useNotification } from '../stores/notification'
 import { useUserStore } from '../stores/user'
 import { useConfirm } from '../utils/confirm'
-import { getUserProfileAPI, updateUserProfileAPI, updatePasswordAPI, uploadAvatarAPI, bloggerMyAPI, categoryListAPI, getTeamsAPI, updateMyTeamAPI } from '../api'
+import { getUserProfileAPI, updateUserProfileAPI, updatePasswordAPI, uploadAvatarAPI, getMyBloggersAPI, categoryListAPI, getTeamsAPI, updateMyTeamAPI, getInviteInfoAPI, getBloggerAddStatsAPI, generateInviteCodeAPI, getInviteCodeRecordsAPI } from '../api'
 import AvatarCropper from '../components/AvatarCropper.vue'
+import { searchList } from '../utils/search-engine'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -597,23 +735,21 @@ const categories = computed(() => {
 const filteredBloggers = computed(() => {
   let result = bloggers.value
 
-  // 搜索
   if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(b => {
-      const matchName = b.nickname?.toLowerCase().includes(query)
-      const matchAccount = b.platform_account?.toLowerCase().includes(query)
-      const matchTags = b.tags?.some(tag => tag.toLowerCase().includes(query))
-      return matchName || matchAccount || matchTags
+    const searchResults = searchList(result, searchQuery.value, {
+      fields: ['nickname', 'platform_account'],
+      fieldWeights: { nickname: 1.3, platform_account: 0.8 },
+      keywordsField: 'tags',
+      limit: result.length,
+      useCache: false
     })
+    result = searchResults.map(r => r.item)
   }
 
-  // 平台筛选
   if (filterPlatform.value) {
     result = result.filter(b => b.platform === filterPlatform.value)
   }
 
-  // 分类筛选
   if (filterCategory.value) {
     result = result.filter(b => b.category === filterCategory.value)
   }
@@ -631,7 +767,7 @@ const loadBloggers = async () => {
   bloggersLoading.value = true
   isRefreshing.value = true
   try {
-    const res = await bloggerMyAPI()
+    const res = await getMyBloggersAPI()
     if (res.code === 200) {
       // API 返回的是 { list, total, page, pageSize } 对象
       bloggers.value = res.data.list || []
@@ -697,10 +833,106 @@ const formatDate = (date) => {
   return new Date(date).toLocaleDateString('zh-CN')
 }
 
+const bloggerAddStats = ref({ added: 0, limit: 10, remaining: 10 })
+
+const loadInviteAndStats = async () => {
+  try {
+    const [inviteRes, statsRes] = await Promise.all([getInviteInfoAPI(), getBloggerAddStatsAPI()])
+    if (inviteRes.code === 200 && inviteRes.data) {
+      userStore.user_code = inviteRes.data.user_code || ''
+      userStore.invited_by = inviteRes.data.invited_by || ''
+      currentInviteCode.value = inviteRes.data.current_invite_code || null
+      invitedUsers.value = inviteRes.data.invited_users || []
+    }
+    if (statsRes.code === 200 && statsRes.data) {
+      bloggerAddStats.value = statsRes.data
+    }
+  } catch (e) {
+    console.error('加载邀请信息失败', e)
+  }
+}
+
+const fullUserCode = computed(() => {
+  if (!userStore.user_code) return '未分配'
+  return userStore.user_code + '|' + (userStore.invited_by || '00000')
+})
+
+const currentInviteCode = ref(null)
+const invitedUsers = ref([])
+const inviteCodeRecords = ref([])
+const generating = ref(false)
+
+const loadInviteCodeRecords = async () => {
+  try {
+    const res = await getInviteCodeRecordsAPI()
+    if (res.code === 200 && res.data) {
+      inviteCodeRecords.value = res.data
+    }
+  } catch (e) {
+    console.error('加载邀请码记录失败', e)
+  }
+}
+
+const copyInviteCode = () => {
+  const code = fullUserCode.value
+  if (!code || code === '未分配') {
+    warning('暂无身份编码，请联系管理员分配')
+    return
+  }
+  copyToClipboard(code)
+  success('身份编码已复制：' + code)
+}
+
+const copyInviteLink = () => {
+  if (!currentInviteCode.value || !currentInviteCode.value.code) {
+    warning('请先生成邀请码')
+    return
+  }
+  const link = window.location.origin + '/register?invite=' + currentInviteCode.value.code
+  copyToClipboard(link)
+  success('邀请链接已复制，分享给好友即可')
+}
+
+const copyToClipboard = (text) => {
+  const ta = document.createElement('textarea')
+  ta.style.position = 'fixed'
+  ta.style.left = '-9999px'
+  ta.style.top = '-9999px'
+  ta.value = text
+  document.body.appendChild(ta)
+  ta.focus()
+  ta.select()
+  try {
+    document.execCommand('copy')
+  } catch (e) {
+    console.warn('copy failed', e)
+  }
+  document.body.removeChild(ta)
+}
+
+const generateInviteCode = async () => {
+  generating.value = true
+  try {
+    const res = await generateInviteCodeAPI()
+    if (res.code === 200) {
+      currentInviteCode.value = res.data
+      success('邀请码生成成功：' + res.data.code)
+      loadInviteCodeRecords()
+    } else {
+      notifyError(res.message || '生成失败')
+    }
+  } catch (e) {
+    notifyError('生成邀请码失败')
+  }
+  generating.value = false
+}
+
 onMounted(() => {
   loadProfile()
   loadBloggers()
   loadCategories()
+  loadInviteAndStats()
+  loadInviteCodeRecords()
 })
 </script>
 
@@ -804,6 +1036,355 @@ onMounted(() => {
 
 .profile-section {
   margin-bottom: 32px;
+}
+
+.invite-section {
+  margin-bottom: 32px;
+}
+
+.invite-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.invite-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s;
+  flex-wrap: wrap;
+}
+
+.invite-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.invite-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.invite-card-icon svg {
+  width: 24px;
+  height: 24px;
+  color: white;
+}
+
+.invite-card-icon.quota-icon {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.invite-card-icon.invited-icon {
+  background: linear-gradient(135deg, #10b981, #34d399);
+}
+
+.invite-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.invite-card-label {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.invite-card-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-family: 'Courier New', monospace;
+}
+
+.code-card {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.code-value {
+  font-size: 16px !important;
+  letter-spacing: 1px;
+}
+
+.code-hint {
+  font-size: 12px;
+  color: #10b981;
+  font-weight: 500;
+}
+
+.code-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.code-actions .btn-copy {
+  flex: 1;
+  text-align: center;
+}
+
+.btn-link {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  color: white !important;
+  border-color: transparent !important;
+}
+
+.btn-link:hover {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
+}
+
+.btn-copy {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-copy:hover {
+  background: #ff6b35;
+  color: white;
+  border-color: #ff6b35;
+}
+
+.quota-bar {
+  width: 100%;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.quota-bar-fill {
+  height: 100%;
+  background: linear-gradient(135deg, #10b981, #34d399);
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.quota-bar-fill.quota-warning {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+}
+
+.quota-bar-fill.quota-full {
+  background: linear-gradient(135deg, #ef4444, #f87171);
+}
+
+.quota-warning-icon {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24) !important;
+}
+
+.quota-full-icon {
+  background: linear-gradient(135deg, #ef4444, #f87171) !important;
+}
+
+.quota-warning-text {
+  color: #f59e0b !important;
+}
+
+.quota-full-text {
+  color: #ef4444 !important;
+}
+
+.quota-hint {
+  font-size: 12px;
+  color: #f59e0b;
+  font-weight: 500;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.invite-code-section {
+  margin-top: 8px;
+  padding: 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.invite-code-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.invite-code-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ff6b35;
+  letter-spacing: 2px;
+}
+
+.invite-code-status {
+  font-size: 12px;
+  font-weight: 500;
+  color: #10b981;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.invite-code-status.used {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-generate {
+  background: linear-gradient(135deg, #10b981, #34d399) !important;
+  color: white !important;
+  border-color: transparent !important;
+}
+
+.btn-generate:hover {
+  background: linear-gradient(135deg, #059669, #10b981) !important;
+}
+
+.btn-generate:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.invited-users-icon {
+  background: linear-gradient(135deg, #06b6d4, #0891b2) !important;
+}
+
+.records-icon {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed) !important;
+}
+
+.invite-records-card {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.invite-records-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.invite-record-item {
+  padding: 8px 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.record-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.record-code {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ff6b35;
+  letter-spacing: 1px;
+}
+
+.record-status {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.record-status.available {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.record-status.used {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.record-detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.record-time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.record-used-by {
+  font-size: 11px;
+  color: #6366f1;
+  font-weight: 500;
+}
+
+.invited-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.invited-user-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.invited-user-item:last-child {
+  border-bottom: none;
+}
+
+.invited-user-name {
+  flex: 1;
+  font-weight: 500;
+  color: #374151;
+}
+
+.invited-user-code {
+  color: #ff6b35;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.invited-user-time {
+  color: #9ca3af;
+  font-size: 11px;
 }
 
 .profile-content {
@@ -1028,7 +1609,7 @@ onMounted(() => {
   width: 100%;
   padding: 12px 16px 12px 48px;
   background: #fff;
-  border: 1px solid var(--border-color);
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
   font-size: 14px;
   color: #1a1a1a;
@@ -1050,7 +1631,7 @@ onMounted(() => {
 .filter-select {
   padding: 10px 16px;
   background: #fff;
-  border: 1px solid var(--border-color);
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
   color: #1a1a1a;
@@ -1065,8 +1646,8 @@ onMounted(() => {
 
 .clear-btn {
   padding: 10px 20px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
   color: #666;
@@ -1075,7 +1656,7 @@ onMounted(() => {
 }
 
 .clear-btn:hover {
-  background: var(--border-color);
+  background: #e5e7eb;
 }
 
 .blogger-list {
@@ -1100,7 +1681,7 @@ onMounted(() => {
 }
 
 .spinner {
-  border: 3px solid var(--border-light);
+  border: 3px solid #f3f3f3;
   border-top: 3px solid #ff6b35;
   border-radius: 50%;
   width: 40px;
@@ -1132,7 +1713,7 @@ onMounted(() => {
 .blogger-card {
   background: #fff;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
+  border: 1px solid #e5e7eb;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -1243,8 +1824,8 @@ onMounted(() => {
 
 .tag {
   padding: 4px 10px;
-  background: var(--bg-hover);
-  color: var(--text-secondary);
+  background: #f3f4f6;
+  color: #4b5563;
   border-radius: 6px;
   font-size: 12px;
 }
@@ -1269,12 +1850,12 @@ onMounted(() => {
 }
 
 .contact-value.empty {
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .card-footer {
   padding: 12px 16px;
-  background: var(--bg-card-hover);
+  background: #f9fafb;
   font-size: 12px;
   color: #999;
 }
@@ -1720,7 +2301,7 @@ html.dark .modal {
 }
 
 .btn-danger {
-  background: var(--danger);
+  background: #ef4444;
   color: white;
 }
 

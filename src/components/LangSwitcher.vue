@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="lang-switcher" :class="{ 'dark-mode': isDark }">
     <button class="lang-btn" @click="toggleDropdown" :title="$t('app.actions')">
       <span class="lang-icon">🌐</span>
@@ -97,7 +97,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 .lang-arrow {
   width: 14px; height: 14px;
   transition: transform 0.2s ease;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 .lang-arrow.open { transform: rotate(180deg); }
 
@@ -105,7 +105,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  background: white;
+  background: var(--bg-card);
   border-radius: 10px;
   box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
   overflow: hidden;
@@ -113,7 +113,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
   min-width: 140px;
 }
 .dark-mode .lang-menu {
-  background: #1f2937;
+  background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.08);
 }
 .lang-option {
@@ -130,11 +130,11 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
   transition: background 0.15s;
   text-align: left;
 }
-.dark-mode .lang-option { color: #e5e7eb; }
+.dark-mode .lang-option { color: var(--border-color); }
 .lang-option:hover { background: var(--bg-hover); }
 .dark-mode .lang-option:hover { background: rgba(255,255,255,0.06); }
-.lang-option.active { background: #fff7ed; color: #c2410c; font-weight: 600; }
-.dark-mode .lang-option.active { background: rgba(249,115,22,0.12); color: #fb923c; }
+.lang-option.active { background: var(--primary-50); color: var(--primary-700); font-weight: 600; }
+.dark-mode .lang-option.active { background: rgba(249,115,22,0.12); color: var(--primary); }
 .option-flag { font-size: 1.1rem; flex-shrink: 0; }
 .option-name { flex: 1; }
 .check-icon {

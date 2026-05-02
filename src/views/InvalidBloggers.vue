@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="invalid-bloggers">
     <div class="page-header">
       <div class="header-content">
@@ -158,7 +158,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { invalidBloggerListAPI, bindInvalidBloggerAPI, getAnnouncementsAPI, categoryListAPI, platformListAPI } from '../api'
+import { invalidBloggerListAPI, bindInvalidBloggerAPI, getAnnouncementsAPI, getCategoryList, platformListAPI } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
@@ -201,7 +201,7 @@ const loadBloggers = async () => {
 
 const loadCategories = async () => {
   try {
-    const res = await categoryListAPI()
+    const res = await getCategoryList()
     if (res.code === 200) {
       categories.value = res.data
     }
@@ -300,12 +300,12 @@ onMounted(() => {
 .header-content h1 {
   font-size: 28px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #1f2937;
   margin-bottom: 4px;
 }
 
 .header-content p {
-  color: var(--text-tertiary);
+  color: #6b7280;
   font-size: 14px;
 }
 
@@ -317,14 +317,14 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  border: 1px solid var(--border-warning);
+  border: 1px solid #fcd34d;
 }
 
 .announcement-icon {
   flex-shrink: 0;
   width: 24px;
   height: 24px;
-  color: var(--warning);
+  color: #d97706;
   margin-top: 2px;
 }
 
@@ -334,13 +334,13 @@ onMounted(() => {
 
 .announcement-title {
   font-weight: 600;
-  color: var(--warning);
+  color: #92400e;
   font-size: 14px;
   margin-bottom: 4px;
 }
 
 .announcement-text {
-  color: var(--warning);
+  color: #78350f;
   font-size: 13px;
 }
 
@@ -370,7 +370,7 @@ onMounted(() => {
 .search-box input {
   width: 100%;
   padding: 10px 12px 10px 40px;
-  border: 1px solid var(--border-color);
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
   outline: none;
@@ -378,13 +378,13 @@ onMounted(() => {
 }
 
 .search-box input:focus {
-  border-color: var(--info);
+  border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .filter-select {
   padding: 10px 16px;
-  border: 1px solid var(--border-color);
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
   outline: none;
@@ -394,7 +394,7 @@ onMounted(() => {
 }
 
 .filter-select:focus {
-  border-color: var(--info);
+  border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -501,7 +501,7 @@ onMounted(() => {
 .nickname {
   font-size: 18px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #1f2937;
   margin-bottom: 8px;
   padding-right: 90px;
 }
@@ -526,15 +526,15 @@ onMounted(() => {
   border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
-  background: var(--bg-hover);
-  color: var(--text-secondary);
+  background: #f3f4f6;
+  color: #4b5563;
 }
 
 .product {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--text-tertiary);
+  color: #6b7280;
   font-size: 13px;
   margin-bottom: 8px;
 }
@@ -546,7 +546,7 @@ onMounted(() => {
 }
 
 .description {
-  color: var(--text-tertiary);
+  color: #6b7280;
   font-size: 13px;
   line-height: 1.5;
   margin-bottom: 12px;
@@ -586,7 +586,7 @@ onMounted(() => {
 }
 
 .user-name {
-  color: var(--text-secondary);
+  color: #374151;
   font-weight: 500;
 }
 
@@ -597,7 +597,7 @@ onMounted(() => {
 
 .evaluation-section {
   padding: 16px 20px;
-  background: var(--bg-card-hover);
+  background: #f9fafb;
   border-top: 1px solid #e5e7eb;
 }
 
@@ -605,7 +605,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-tertiary);
+  color: #6b7280;
   font-size: 13px;
   font-weight: 500;
   margin-bottom: 8px;
@@ -617,14 +617,14 @@ onMounted(() => {
 }
 
 .evaluation-reason {
-  color: var(--text-secondary);
+  color: #374151;
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 8px;
 }
 
 .evaluation-content {
-  color: var(--text-tertiary);
+  color: #6b7280;
   font-size: 13px;
   line-height: 1.6;
   margin-bottom: 8px;
@@ -681,12 +681,12 @@ onMounted(() => {
 .empty-state h3 {
   font-size: 20px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #374151;
   margin-bottom: 8px;
 }
 
 .empty-state p {
-  color: var(--text-tertiary);
+  color: #6b7280;
   font-size: 14px;
 }
 
@@ -701,7 +701,7 @@ onMounted(() => {
 .page-btn {
   padding: 8px 16px;
   background: white;
-  border: 1px solid var(--border-color);
+  border: 1px solid #e5e7eb;
   border-radius: 6px;
   font-size: 14px;
   cursor: pointer;
@@ -709,8 +709,8 @@ onMounted(() => {
 }
 
 .page-btn:hover:not(:disabled) {
-  border-color: var(--info);
-  color: var(--info);
+  border-color: #3b82f6;
+  color: #3b82f6;
 }
 
 .page-btn:disabled {
@@ -719,7 +719,7 @@ onMounted(() => {
 }
 
 .page-info {
-  color: var(--text-tertiary);
+  color: #6b7280;
   font-size: 14px;
 }
 

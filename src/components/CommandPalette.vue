@@ -1,189 +1,213 @@
-﻿<template>
+<template>
   <Teleport to="body">
     <Transition name="command-fade">
-      <div v-if="isOpen" class="cmd-overlay" @click="close" @keydown.esc="close">
-        <div class="cmd-palette" @click.stop>
-          <div class="cmd-search">
-            <svg class="cmd-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input
-              ref="searchInput"
-              v-model="query"
-              type="text"
-              class="cmd-input"
-              placeholder="搜索或输入命令..."
-              @keydown.down.prevent="moveDown"
-              @keydown.up.prevent="moveUp"
-              @keydown.enter.prevent="executeSelected"
-              @keydown.tab.prevent="toggleFilter"
-            />
-            <div class="cmd-filter" v-if="activeFilter">
-              <span>{{ activeFilterLabel }}</span>
-              <button @click="activeFilter = null">✕</button>
+      <div v-if="isOpen" class="command-overlay" tabindex="-1" ref="overlayRef" @click="close" @keydown.down.prevent="handleKeyDown" @keydown.up.prevent="handleKeyUp" @keydown.enter.prevent="executeSelected" @keydown.tab.prevent="switchTab" @keydown.esc="close" @after-enter="onOverlayEntered">
+        <div class="command-palette" @click.stop>
+          <div class="command-header">
+            <div class="command-search-wrapper">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                ref="searchInput"
+                v-model="query"
+                type="text"
+                class="command-input"
+                :placeholder="activeTab === 'all' ? '搜索命令、博主、页面...' : '输入关键词...'"
+                @keydown.down.prevent
+                @keydown.up.prevent
+                @keydown.enter.prevent
+                @keydown.tab.prevent
+                @keydown.esc="close"
+              />
+              <kbd v-if="query" class="clear-btn" @click="query = ''">✕</kbd>
+              <kbd v-else class="esc-hint">ESC</kbd>
             </div>
           </div>
 
-          <div class="cmd-body" ref="commandBody">
-            <div v-if="isLoadingBloggers" class="cmd-loading">
-              <div class="cmd-spinner"></div>
-            </div>
+          <div class="command-tabs">
+            <button
+              v-for="tab in tabs"
+              :key="tab.id"
+              class="tab-btn"
+              :class="{ active: activeTab === tab.id }"
+              @click="activeTab = tab.id"
+            >
+              <span v-html="tab.icon"></span>
+              {{ tab.name }}
+              <span v-if="tab.id !== 'all'" class="tab-count">{{ getCount(tab.id) }}</span>
+            </button>
+          </div>
 
-            <template v-else>
-              <div v-if="!query && recentQueries.length > 0" class="cmd-section">
-                <div class="section-label">最近搜索</div>
-                <div class="cmd-row-list">
-                  <div
-                    v-for="(q, i) in recentQueries"
-                    :key="i"
-                    class="cmd-row query-row"
-                    :data-idx="i"
-                    :class="{ selected: selectedIndex === i }"
-                    @click="query = q; selectedIndex = 0"
-                    @mouseenter="selectedIndex = i"
-                  >
-                    <span class="row-icon">🕐</span>
-                    <span class="row-text">{{ q }}</span>
+          <div ref="commandBody" class="command-body">
+            <div v-if="activeTab === 'all'" class="all-results">
+              <div v-if="filteredCommands.length > 0" class="result-group">
+                <div class="group-label">⚡ 命令</div>
+                <div
+                  v-for="(cmd, index) in filteredCommands.slice(0, 5)"
+                  :key="'cmd-' + cmd.id"
+                  class="result-item command-item"
+                  :class="{ selected: selectedIndex === getGlobalIndex('cmd', index) }"
+                  @click="executeCommand(cmd)"
+                  @mouseenter="selectedIndex = getGlobalIndex('cmd', index); $event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })"
+                >
+                  <div class="item-icon" :style="{ background: cmd.bgColor }">
+                    <span v-html="cmd.icon"></span>
+                  </div>
+                  <div class="item-info">
+                    <span class="item-name" v-html="highlightMatch(cmd.name)"></span>
+                    <span class="item-desc" v-html="highlightMatch(cmd.description)"></span>
+                  </div>
+                  <div class="item-shortcut" v-if="cmd.shortcut">
+                    <kbd v-for="key in cmd.shortcut" :key="key">{{ key }}</kbd>
                   </div>
                 </div>
               </div>
 
-              <template v-if="query">
-                <div class="cmd-section" v-if="filteredActions.length > 0">
-                  <div class="section-label">操作</div>
-                  <div class="cmd-row-list">
-                    <div
-                      v-for="(action, i) in filteredActions"
-                      :key="action.id"
-                      class="cmd-row"
-                      :data-idx="getIndex('action', i)"
-                      :class="{ selected: selectedIndex === getIndex('action', i) }"
-                      @click="executeAction(action)"
-                      @mouseenter="selectedIndex = getIndex('action', i)"
-                    >
-                      <span class="row-icon" :style="{ background: action.bg }">{{ action.icon }}</span>
-                      <div class="row-content">
-                        <span class="row-title" v-html="highlight(action.name)"></span>
-                        <span class="row-desc" v-html="highlight(action.desc)"></span>
-                      </div>
-                      <kbd class="row-shortcut" v-if="action.key">{{ action.key }}</kbd>
-                    </div>
+              <div v-if="filteredBloggers.length > 0" class="result-group">
+                <div class="group-label">👤 博主</div>
+                <div
+                  v-for="(blogger, index) in filteredBloggers.slice(0, 5)"
+                  :key="'blog-' + blogger.id"
+                  class="result-item blogger-item"
+                  :class="{ selected: selectedIndex === getGlobalIndex('blog', index) }"
+                  @click="goToBlogger(blogger.id)"
+                  @mouseenter="selectedIndex = getGlobalIndex('blog', index); $event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })"
+                >
+                  <div class="item-avatar" :style="{ backgroundColor: getCategoryColor(blogger.category) }">
+                    <img v-if="blogger.avatar" :src="blogger.avatar" :alt="blogger.nickname" />
+                    <span v-else>{{ blogger.nickname?.charAt(0) || '?' }}</span>
                   </div>
-                </div>
-
-                <div class="cmd-section" v-if="filteredBloggers.length > 0">
-                  <div class="section-label">博主 <span class="count">({{ filteredBloggers.length }})</span></div>
-                  <div class="cmd-row-list">
-                    <div
-                      v-for="(blogger, i) in filteredBloggers"
-                      :key="blogger.id"
-                      class="cmd-row"
-                      :data-idx="getIndex('blogger', i)"
-                      :class="{ selected: selectedIndex === getIndex('blogger', i) }"
-                      @click="goToBlogger(blogger.id)"
-                      @mouseenter="selectedIndex = getIndex('blogger', i)"
-                    >
-                      <span class="row-avatar" :style="{ background: getColor(blogger.category) }">
-                        <img v-if="blogger.avatar" :src="blogger.avatar" />
-                        <span v-else>{{ blogger.nickname?.charAt(0) }}</span>
-                      </span>
-                      <div class="row-content">
-                        <span class="row-title" v-html="highlight(blogger.nickname)"></span>
-                        <div class="row-meta">
-                          <span class="meta-tag" v-if="blogger.category">{{ blogger.category }}</span>
-                          <span class="meta-tag" :class="getStatusClass(blogger.status)" v-if="blogger.status">{{ blogger.status }}</span>
-                        </div>
-                      </div>
-                      <span class="row-arrow">→</span>
-                    </div>
+                  <div class="item-info">
+                    <span class="item-name" v-html="highlightMatch(blogger.nickname)"></span>
+                    <span class="item-desc">{{ blogger.category }} · {{ blogger.platform || '未知平台' }}</span>
                   </div>
+                  <span class="item-arrow">→</span>
                 </div>
+              </div>
 
-                <div class="cmd-section" v-if="filteredPages.length > 0">
-                  <div class="section-label">页面</div>
-                  <div class="cmd-row-list">
-                    <div
-                      v-for="(page, i) in filteredPages"
-                      :key="page.path"
-                      class="cmd-row"
-                      :data-idx="getIndex('page', i)"
-                      :class="{ selected: selectedIndex === getIndex('page', i) }"
-                      @click="goToPage(page.path)"
-                      @mouseenter="selectedIndex = getIndex('page', i)"
-                    >
-                      <span class="row-icon" :style="{ background: page.bg }">{{ page.icon }}</span>
-                      <div class="row-content">
-                        <span class="row-title" v-html="highlight(page.name)"></span>
-                        <span class="row-path">{{ page.path }}</span>
-                      </div>
-                      <span class="row-arrow">→</span>
-                    </div>
+              <div v-if="filteredPages.length > 0" class="result-group">
+                <div class="group-label">📄 页面</div>
+                <div
+                  v-for="(page, index) in filteredPages.slice(0, 5)"
+                  :key="'page-' + page.path"
+                  class="result-item page-item"
+                  :class="{ selected: selectedIndex === getGlobalIndex('page', index) }"
+                  @click="goToPage(page.path)"
+                  @mouseenter="selectedIndex = getGlobalIndex('page', index); $event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })"
+                >
+                  <div class="item-icon" :style="{ background: page.bgColor }">
+                    <span v-html="page.icon"></span>
                   </div>
-                </div>
-
-                <div class="cmd-empty" v-if="totalResults === 0">
-                  <span class="empty-icon">🔍</span>
-                  <span>未找到 "{{ query }}" 相关结果</span>
-                </div>
-              </template>
-
-              <template v-else>
-                <div class="cmd-section" v-if="quickActions.length > 0">
-                  <div class="section-label">快速操作</div>
-                  <div class="cmd-row-list">
-                    <div
-                      v-for="(action, i) in quickActions"
-                      :key="action.id"
-                      class="cmd-row"
-                      :data-idx="i"
-                      :class="{ selected: selectedIndex === i }"
-                      @click="executeAction(action)"
-                      @mouseenter="selectedIndex = i"
-                    >
-                      <span class="row-icon" :style="{ background: action.bg }">{{ action.icon }}</span>
-                      <div class="row-content">
-                        <span class="row-title">{{ action.name }}</span>
-                        <span class="row-desc">{{ action.desc }}</span>
-                      </div>
-                      <kbd class="row-shortcut" v-if="action.key">{{ action.key }}</kbd>
-                    </div>
+                  <div class="item-info">
+                    <span class="item-name" v-html="highlightMatch(page.name)"></span>
+                    <span class="item-path">{{ page.path }}</span>
                   </div>
+                  <span class="item-arrow">→</span>
                 </div>
+              </div>
 
-                <div class="cmd-section" v-if="navPages.length > 0">
-                  <div class="section-label">导航</div>
-                  <div class="cmd-row-list">
-                    <div
-                      v-for="(page, i) in navPages"
-                      :key="page.path"
-                      class="cmd-row"
-                      :data-idx="getIndex('nav', i)"
-                      :class="{ selected: selectedIndex === getIndex('nav', i) }"
-                      @click="goToPage(page.path)"
-                      @mouseenter="selectedIndex = getIndex('nav', i)"
-                    >
-                      <span class="row-icon" :style="{ background: page.bg }">{{ page.icon }}</span>
-                      <div class="row-content">
-                        <span class="row-title">{{ page.name }}</span>
-                      </div>
-                      <kbd class="row-shortcut" v-if="page.key">{{ page.key }}</kbd>
-                    </div>
-                  </div>
+              <div v-if="totalResults === 0 && query" class="empty-state">
+                <span>未找到 "{{ query }}" 相关结果</span>
+                <p class="empty-hint">试试其他关键词或使用拼音搜索</p>
+              </div>
+              <div v-if="!query" class="recent-hint">
+                <p>💡 输入关键词开始搜索，支持：</p>
+                <div class="feature-list">
+                  <span>✨ 模糊匹配</span>
+                  <span>🔤 拼音搜索</span>
+                  <span>🎯 首字母缩写</span>
+                  <span>⌨️ 路径跳转 (如 add, my)</span>
                 </div>
-              </template>
-            </template>
+              </div>
+            </div>
+
+            <div v-else-if="activeTab === 'commands'" class="command-list">
+              <div
+                v-for="(cmd, index) in filteredCommands"
+                :key="cmd.id"
+                class="command-item"
+                :class="{ selected: selectedIndex === index }"
+                @click="executeCommand(cmd)"
+                @mouseenter="selectedIndex = index; $event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })"
+              >
+                <div class="command-icon" :style="{ background: cmd.bgColor }">
+                  <span v-html="cmd.icon"></span>
+                </div>
+                <div class="command-info">
+                  <span class="command-name" v-html="highlightMatch(cmd.name)"></span>
+                  <span class="command-desc" v-html="highlightMatch(cmd.description)"></span>
+                </div>
+                <div class="command-shortcut" v-if="cmd.shortcut">
+                  <kbd v-for="key in cmd.shortcut" :key="key">{{ key }}</kbd>
+                </div>
+              </div>
+              <div v-if="filteredCommands.length === 0" class="empty-state">
+                <span>未找到匹配的命令</span>
+              </div>
+            </div>
+
+            <div v-else-if="activeTab === 'bloggers'" class="blogger-list">
+              <div
+                v-for="(blogger, index) in filteredBloggers"
+                :key="blogger.id"
+                class="blogger-item"
+                :class="{ selected: selectedIndex === index }"
+                @click="goToBlogger(blogger.id)"
+                @mouseenter="selectedIndex = index; $event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })"
+              >
+                <div class="blogger-avatar" :style="{ backgroundColor: getCategoryColor(blogger.category) }">
+                  <img v-if="blogger.avatar" :src="blogger.avatar" :alt="blogger.nickname" />
+                  <span v-else>{{ blogger.nickname?.charAt(0) || '?' }}</span>
+                </div>
+                <div class="blogger-info">
+                  <span class="blogger-name" v-html="highlightMatch(blogger.nickname)"></span>
+                  <span class="blogger-meta">{{ blogger.category }} · {{ blogger.platform || '未知平台' }} · {{ blogger.status || '初次联系' }}</span>
+                </div>
+                <span class="blogger-arrow">→</span>
+              </div>
+              <div v-if="filteredBloggers.length === 0" class="empty-state">
+                <span>未找到匹配的博主</span>
+              </div>
+            </div>
+
+            <div v-else-if="activeTab === 'pages'" class="page-list">
+              <div
+                v-for="(page, index) in filteredPages"
+                :key="page.path"
+                class="page-item"
+                :class="{ selected: selectedIndex === index }"
+                @click="goToPage(page.path)"
+                @mouseenter="selectedIndex = index; $event.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })"
+              >
+                <div class="page-icon" :style="{ background: page.bgColor }">
+                  <span v-html="page.icon"></span>
+                </div>
+                <div class="page-info">
+                  <span class="page-name" v-html="highlightMatch(page.name)"></span>
+                  <span class="page-path">{{ page.path }}</span>
+                </div>
+                <span class="page-arrow">→</span>
+              </div>
+              <div v-if="filteredPages.length === 0" class="empty-state">
+                <span>未找到匹配的页面</span>
+              </div>
+            </div>
           </div>
 
-          <div class="cmd-footer">
-            <div class="footer-keys">
-              <span><kbd>↑↓</kbd> 导航</span>
-              <span><kbd>↵</kbd> 确认</span>
-              <span><kbd>Tab</kbd> 切换类型</span>
-              <span><kbd>Esc</kbd> 关闭</span>
+          <div class="command-footer">
+            <div class="footer-hint">
+              <kbd>↑↓</kbd> 导航
+              <kbd>↵</kbd> 选择
+              <kbd>⇥</kbd> 切换标签
+              <kbd>esc</kbd> 关闭
             </div>
-            <div class="footer-info" v-if="selectedItem">
-              <span>{{ selectedItem.name || selectedItem.nickname || selectedItem.title }}</span>
+            <div class="footer-stats" v-if="activeTab === 'all' && totalResults > 0">
+              共 {{ totalResults }} 个结果
+            </div>
+            <div class="footer-stats" v-else-if="activeTab === 'bloggers'">
+              共 {{ filteredBloggers.length }} 位博主
             </div>
           </div>
         </div>
@@ -193,219 +217,242 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { bloggerListAPI } from '../api'
-
-const router = useRouter()
+import { searchList, highlightText as engineHighlight, getMatchInfo, MATCH_TYPE } from '../utils/search-engine'
+import { highlightMatch as pinyinHighlight } from '../utils/pinyin-search'
 
 const props = defineProps({
-  visible: { type: Boolean, default: false }
+  visible: {
+    type: Boolean,
+    default: false
+  }
 })
 
 const emit = defineEmits(['update:visible', 'close'])
 
+const router = useRouter()
 const isOpen = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val)
 })
-
 const query = ref('')
+const activeTab = ref('all')
 const selectedIndex = ref(0)
 const searchInput = ref(null)
 const commandBody = ref(null)
+const overlayRef = ref(null)
 const bloggers = ref([])
-const isLoadingBloggers = ref(false)
-const activeFilter = ref(null)
-
-const filters = [
-  { id: 'action', label: '操作' },
-  { id: 'blogger', label: '博主' },
-  { id: 'page', label: '页面' }
-]
-
-const activeFilterLabel = computed(() => filters.find(f => f.id === activeFilter.value)?.label || '')
-
-const toggleFilter = () => {
-  const current = filters.findIndex(f => f.id === activeFilter.value)
-  const next = (current + 1) % (filters.length + 1)
-  activeFilter.value = next === filters.length ? null : filters[next].id
-  selectedIndex.value = 0
-}
 
 const close = () => {
   isOpen.value = false
   emit('close')
 }
 
-const recentQueries = ref(JSON.parse(localStorage.getItem('orange_recent_queries') || '[]'))
+const tabs = [
+  { id: 'all', name: '全部', icon: '🔍' },
+  { id: 'commands', name: '命令', icon: '⚡' },
+  { id: 'bloggers', name: '博主', icon: '👤' },
+  { id: 'pages', name: '页面', icon: '📄' }
+]
 
-const saveQuery = (q) => {
-  if (!q || q.trim().length < 2) return
-  const list = [q.trim(), ...recentQueries.value.filter(s => s !== q.trim())].slice(0, 5)
-  recentQueries.value = list
-  localStorage.setItem('orange_recent_queries', JSON.stringify(list))
-}
-
-const highlight = (text) => {
-  if (!query.value || !text) return text || ''
-  const idx = text.toLowerCase().indexOf(query.value.toLowerCase())
-  if (idx === -1) return text
-  return text.slice(0, idx) + '<mark>' + text.slice(idx, idx + query.value.length) + '</mark>' + text.slice(idx + query.value.length)
-}
-
-const actions = ref([
-  { id: 'add', name: '录入博主', desc: '添加新博主信息', icon: '➕', bg: 'rgba(249,115,22,0.15)', key: '>add', action: () => router.push('/add') },
-  { id: 'home', name: '返回首页', desc: '跳转到首页', icon: '🏠', bg: 'rgba(59,130,246,0.15)', key: '>home', action: () => router.push('/') },
-  { id: 'my', name: '个人中心', desc: '管理个人信息', icon: '👤', bg: 'rgba(34,197,94,0.15)', key: '>my', action: () => router.push('/my') },
-  { id: 'team', name: '团队中心', desc: '管理团队协作', icon: '👥', bg: 'rgba(99,102,241,0.15)', key: '>team', action: () => router.push('/team') },
-  { id: 'stats', name: '数据统计', desc: '查看数据报表', icon: '📊', bg: 'rgba(249,115,22,0.15)', key: '>stats', action: () => router.push('/statistics') },
-  { id: 'calendar', name: '提醒日历', desc: '查看待办事项', icon: '📅', bg: 'rgba(236,72,153,0.15)', key: '>cal', action: () => router.push('/calendar') },
-  { id: 'admin', name: '系统管理', desc: '管理后台设置', icon: '⚙️', bg: 'rgba(107,114,128,0.15)', key: '>admin', action: () => router.push('/admin') },
-  { id: 'theme', name: '切换主题', desc: '深色/浅色模式', icon: '🌓', bg: 'rgba(156,163,175,0.15)', key: '>theme', action: () => toggleTheme() },
-  { id: 'export', name: '导出数据', desc: '导出博主数据', icon: '📤', bg: 'rgba(34,197,94,0.15)', key: '>export', action: () => router.push('/admin?tab=export') },
-  { id: 'import', name: '导入数据', desc: '导入博主数据', icon: '📥', bg: 'rgba(59,130,246,0.15)', key: '>import', action: () => router.push('/admin?tab=import') }
+const commands = ref([
+  { id: 'add', name: '录入博主', description: '添加新的博主信息', icon: '➕', bgColor: 'rgba(249, 115, 22, 0.1)', shortcut: ['add'], keywords: ['add', '录入', '新增', '创建'], action: () => router.push('/add') },
+  { id: 'home', name: '返回首页', description: '查看博主列表', icon: '🏠', bgColor: 'rgba(59, 130, 246, 0.1)', shortcut: ['/'], keywords: ['home', '首页', '列表', '/'], action: () => router.push('/') },
+  { id: 'my', name: '我的博主', description: '查看我负责的博主', icon: '👤', bgColor: 'rgba(34, 197, 94, 0.1)', shortcut: ['/my'], keywords: ['my', '我的', '个人', '/my'], action: () => router.push('/my') },
+  { id: 'team', name: '团队协作', description: '团队博主管理', icon: '👥', bgColor: 'rgba(99, 102, 241, 0.1)', shortcut: ['/team'], keywords: ['team', '团队', '协作', '/team'], action: () => router.push('/team') },
+  { id: 'calendar', name: '日历视图', description: '查看日程安排', icon: '📅', bgColor: 'rgba(236, 72, 153, 0.1)', shortcut: ['/calendar'], keywords: ['calendar', '日历', '日程', '安排', '/calendar'], action: () => router.push('/calendar') },
+  { id: 'stats', name: '统计分析', description: '查看数据统计', icon: '📊', bgColor: 'rgba(249, 115, 22, 0.1)', shortcut: ['/statistics'], keywords: ['stats', 'statistics', '统计', '分析', '数据', '/statistics'], action: () => router.push('/statistics') },
+  { id: 'admin', name: '管理后台', description: '系统管理设置', icon: '⚙️', bgColor: 'rgba(107, 114, 128, 0.1)', shortcut: ['/admin'], keywords: ['admin', '管理', '后台', '设置', '/admin'], action: () => router.push('/admin') },
+  { id: 'dark', name: '切换主题', description: '深色/浅色模式切换', icon: '🌓', bgColor: 'rgba(156, 163, 175, 0.1)', shortcut: ['⌘D'], keywords: ['dark', 'theme', '主题', '切换', '深色', '浅色'], action: () => toggleTheme() },
+  { id: 'export', name: '导出数据', description: '导出博主数据', icon: '📤', bgColor: 'rgba(34, 197, 94, 0.1)', keywords: ['export', '导出', '数据', 'excel'], action: () => router.push('/admin?tab=export') },
+  { id: 'import', name: '导入数据', description: '批量导入博主', icon: '📥', bgColor: 'rgba(59, 130, 246, 0.1)', keywords: ['import', '导入', '批量'], action: () => router.push('/admin?tab=import') },
+  { id: 'invalid', name: '失效博主', description: '查看失效博主库', icon: '⚠️', bgColor: 'rgba(239, 68, 68, 0.1)', keywords: ['invalid', '失效', '失效博主', '/invalid-bloggers'], action: () => router.push('/invalid-bloggers') },
+  { id: 'chat', name: '私信聊天', description: '消息中心', icon: '💬', bgColor: 'rgba(59, 130, 246, 0.1)', shortcut: ['/chat'], keywords: ['chat', '私信', '聊天', '消息', '/chat'], action: () => router.push('/chat') }
 ])
 
-const quickActions = computed(() => actions.value.slice(0, 6))
-
-const navPages = ref([
-  { name: '首页', path: '/', icon: '🏠', bg: 'rgba(59,130,246,0.15)', key: '/home' },
-  { name: '录入博主', path: '/add', icon: '➕', bg: 'rgba(249,115,22,0.15)', key: '/add' },
-  { name: '个人中心', path: '/my', icon: '👤', bg: 'rgba(34,197,94,0.15)', key: '/my' },
-  { name: '团队中心', path: '/team', icon: '👥', bg: 'rgba(99,102,241,0.15)', key: '/team' },
-  { name: '数据统计', path: '/statistics', icon: '📊', bg: 'rgba(249,115,22,0.15)', key: '/stats' },
-  { name: '提醒日历', path: '/calendar', icon: '📅', bg: 'rgba(236,72,153,0.15)', key: '/cal' },
-  { name: '系统管理', path: '/admin', icon: '⚙️', bg: 'rgba(107,114,128,0.15)', key: '/admin' }
+const pages = ref([
+  { name: '首页', path: '/', icon: '🏠', bgColor: 'rgba(59, 130, 246, 0.1)', keywords: ['home', '首页', '列表'] },
+  { name: '录入博主', path: '/add', icon: '➕', bgColor: 'rgba(249, 115, 22, 0.1)', keywords: ['add', '录入', '新增'] },
+  { name: '我的博主', path: '/my', icon: '👤', bgColor: 'rgba(34, 197, 94, 0.1)', keywords: ['my', '我的', '个人'] },
+  { name: '团队协作', path: '/team', icon: '👥', bgColor: 'rgba(99, 102, 241, 0.1)', keywords: ['team', '团队', '协作'] },
+  { name: '日历视图', path: '/calendar', icon: '📅', bgColor: 'rgba(236, 72, 153, 0.1)', keywords: ['calendar', '日历', '日程'] },
+  { name: '统计分析', path: '/statistics', icon: '📊', bgColor: 'rgba(249, 115, 22, 0.1)', keywords: ['statistics', '统计', '分析', '数据'] },
+  { name: '失效博主', path: '/invalid-bloggers', icon: '⚠️', bgColor: 'rgba(239, 68, 68, 0.1)', keywords: ['invalid', '失效'] },
+  { name: '管理后台', path: '/admin', icon: '⚙️', bgColor: 'rgba(107, 114, 128, 0.1)', keywords: ['admin', '管理', '后台'] },
+  { name: '私信聊天', path: '/chat', icon: '💬', bgColor: 'rgba(59, 130, 246, 0.1)', keywords: ['chat', '私信', '聊天', '消息'] }
 ])
 
-const filteredActions = computed(() => {
-  if (!query.value) return []
-  const q = query.value.toLowerCase()
-  return actions.value.filter(a =>
-    (!activeFilter.value || activeFilter.value === 'action') &&
-    (a.name.toLowerCase().includes(q) || a.desc.toLowerCase().includes(q))
-  )
-})
-
-const filteredBloggers = computed(() => {
-  if (!query.value) return []
-  const q = query.value.toLowerCase().trim()
-  if (!q) return []
-  return bloggers.value.filter(b => {
-    if (activeFilter.value && activeFilter.value !== 'blogger') return false
-    const fields = [b.nickname, b.category, b.platform, b.status, b.product].filter(Boolean).map(f => f.toLowerCase())
-    return fields.some(f => f.includes(q)) ||
-      (b.tags || []).some(t => t.toLowerCase().includes(q))
-  }).slice(0, 8)
-})
-
-const filteredPages = computed(() => {
-  if (!query.value) return []
-  const q = query.value.toLowerCase()
-  return navPages.value.filter(p =>
-    (!activeFilter.value || activeFilter.value === 'page') &&
-    (p.name.toLowerCase().includes(q) || p.path.toLowerCase().includes(q))
-  )
-})
-
-const totalResults = computed(() =>
-  filteredActions.value.length + filteredBloggers.value.length + filteredPages.value.length
-)
-
-const globalItems = computed(() => {
-  if (query.value) {
-    const items = []
-    if (filteredActions.value.length) {
-      items.push(...filteredActions.value.map((a, i) => ({ type: 'action', data: a, index: i })))
-    }
-    if (filteredBloggers.value.length) {
-      items.push(...filteredBloggers.value.map((b, i) => ({ type: 'blogger', data: b, index: i })))
-    }
-    if (filteredPages.value.length) {
-      items.push(...filteredPages.value.map((p, i) => ({ type: 'page', data: p, index: i })))
-    }
-    return items
-  } else {
-    const items = []
-    items.push(...quickActions.value.map((a, i) => ({ type: 'quick', data: a, index: i })))
-    const navOffset = items.length
-    items.push(...navPages.value.map((p, i) => ({ type: 'nav', data: p, index: i })))
-    return items
-  }
-})
-
-const selectedItem = computed(() => globalItems.value[selectedIndex.value]?.data || null)
-
-const getIndex = (type, localIndex) => {
-  return globalItems.value.findIndex(item => item.type === type && item.index === localIndex)
-}
-
-const scrollToSelected = () => {
-  nextTick(() => {
-    const container = commandBody.value
-    if (!container) return
-
-    if (selectedIndex.value === 0) {
-      container.scrollTop = 0
-      return
-    }
-
-    const item = globalItems.value[selectedIndex.value]
-    if (!item) return
-    const el = container.querySelector(`[data-idx="${selectedIndex.value}"]`)
-    if (!el) return
-
-    const elTop = el.offsetTop
-    const elBottom = elTop + el.offsetHeight
-    const viewTop = container.scrollTop
-    const viewBottom = viewTop + container.clientHeight
-
-    if (elTop < viewTop) {
-      container.scrollTop = Math.max(0, elTop - 12)
-    } else if (elBottom > viewBottom) {
-      container.scrollTop = elBottom - container.clientHeight + 12
-    }
+const commandSearchResults = computed(() => {
+  if (!query.value) return commands.value.map(cmd => ({ item: cmd, score: 0 }))
+  return searchList(commands.value, query.value, {
+    fields: ['name', 'description'],
+    fieldWeights: { name: 1.2, description: 0.8 },
+    keywordsField: 'keywords',
+    limit: 20
   })
+})
+
+const bloggerSearchResults = computed(() => {
+  if (!query.value) return bloggers.value.slice(0, 20).map(b => ({ item: b, score: 0 }))
+  return searchList(bloggers.value, query.value, {
+    fields: ['nickname', 'category', 'platform'],
+    fieldWeights: { nickname: 1.3, category: 0.9, platform: 0.8 },
+    keywordsField: 'keywords',
+    limit: 20
+  })
+})
+
+const pageSearchResults = computed(() => {
+  if (!query.value) return pages.value.map(p => ({ item: p, score: 0 }))
+  return searchList(pages.value, query.value, {
+    fields: ['name', 'path'],
+    fieldWeights: { name: 1.2, path: 0.7 },
+    keywordsField: 'keywords',
+    limit: 20
+  })
+})
+
+const filteredCommands = computed(() => commandSearchResults.value.map(r => r.item))
+const filteredBloggers = computed(() => bloggerSearchResults.value.map(r => r.item))
+const filteredPages = computed(() => pageSearchResults.value.map(r => r.item))
+
+const totalResults = computed(() => {
+  return filteredCommands.value.length + filteredBloggers.value.length + filteredPages.value.length
+})
+
+const getGlobalIndex = (type, index) => {
+  if (type === 'cmd') return index
+  if (type === 'blog') return filteredCommands.value.slice(0, 5).length + index
+  if (type === 'page') return filteredCommands.value.slice(0, 5).length + filteredBloggers.value.slice(0, 5).length + index
+  return index
+}
+
+const getTotalItems = () => {
+  if (activeTab.value === 'all') {
+    return Math.min(filteredCommands.value.length, 5) +
+           Math.min(filteredBloggers.value.length, 5) +
+           Math.min(filteredPages.value.length, 5)
+  }
+  if (activeTab.value === 'commands') return filteredCommands.value.length
+  if (activeTab.value === 'bloggers') return filteredBloggers.value.length
+  if (activeTab.value === 'pages') return filteredPages.value.length
+  return 0
+}
+
+const getCount = (tabId) => {
+  if (tabId === 'commands') return filteredCommands.value.length
+  if (tabId === 'bloggers') return filteredBloggers.value.length
+  if (tabId === 'pages') return filteredPages.value.length
+  return 0
 }
 
 const moveDown = () => {
-  const len = globalItems.value.length
-  if (!len) return
-  selectedIndex.value = Math.min(selectedIndex.value + 1, len - 1)
-  scrollToSelected()
+  const total = getTotalItems()
+  if (total === 0) return
+  if (selectedIndex.value >= total - 1) {
+    selectedIndex.value = 0
+    commandBody.value?.scrollTo({ top: 0, behavior: 'instant' })
+  } else {
+    selectedIndex.value++
+    nextTick(() => scrollCurrentIntoView())
+  }
 }
 
 const moveUp = () => {
-  if (!globalItems.value.length) return
-  selectedIndex.value = Math.max(selectedIndex.value - 1, 0)
-  scrollToSelected()
+  const total = getTotalItems()
+  if (total === 0) return
+  if (selectedIndex.value <= 0) {
+    selectedIndex.value = total - 1
+    commandBody.value?.scrollTo({ top: commandBody.value.scrollHeight, behavior: 'instant' })
+  } else {
+    selectedIndex.value--
+    nextTick(() => scrollCurrentIntoView())
+  }
+}
+
+const handleKeyDown = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  moveDown()
+}
+
+const handleKeyUp = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  moveUp()
+}
+
+const scrollCurrentIntoView = () => {
+  const container = commandBody.value
+  if (!container) return
+  const selectedEl = container.querySelector('.result-item.selected, .command-item.selected, .blogger-item.selected, .page-item.selected')
+  if (!selectedEl) return
+  
+  const containerRect = container.getBoundingClientRect()
+  const elementRect = selectedEl.getBoundingClientRect()
+  const offsetTop = elementRect.top - containerRect.top + container.scrollTop
+  const containerHeight = container.clientHeight
+  const elementHeight = elementRect.height
+  const scrollToPos = offsetTop - (containerHeight / 2) + (elementHeight / 2)
+  
+  container.scrollTo({
+    top: Math.max(0, Math.min(scrollToPos, container.scrollHeight - containerHeight)),
+    behavior: 'instant'
+  })
+}
+
+const switchTab = () => {
+  const currentIndex = tabs.findIndex(t => t.id === activeTab.value)
+  const nextIndex = (currentIndex + 1) % tabs.length
+  activeTab.value = tabs[nextIndex].id
+  selectedIndex.value = 0
 }
 
 const executeSelected = () => {
-  const item = selectedItem.value
-  if (!item) return
-  const type = globalItems.value[selectedIndex.value]?.type
-  if (type === 'action' || type === 'quick') executeAction(item)
-  else if (type === 'blogger') goToBlogger(item.id)
-  else if (type === 'page' || type === 'nav') goToPage(item.path)
+  if (activeTab.value === 'all') {
+    const cmdCount = Math.min(filteredCommands.value.length, 5)
+    const blogCount = Math.min(filteredBloggers.value.length, 5)
+
+    if (selectedIndex.value < cmdCount) {
+      executeCommand(filteredCommands.value[selectedIndex.value])
+    } else if (selectedIndex.value < cmdCount + blogCount) {
+      goToBlogger(filteredBloggers.value[selectedIndex.value - cmdCount].id)
+    } else {
+      const pageIdx = selectedIndex.value - cmdCount - blogCount
+      goToPage(filteredPages.value[pageIdx].path)
+    }
+    return
+  }
+
+  if (activeTab.value === 'commands') {
+    if (filteredCommands.value[selectedIndex.value]) {
+      executeCommand(filteredCommands.value[selectedIndex.value])
+    }
+  } else if (activeTab.value === 'bloggers') {
+    if (filteredBloggers.value[selectedIndex.value]) {
+      goToBlogger(filteredBloggers.value[selectedIndex.value].id)
+    }
+  } else if (activeTab.value === 'pages') {
+    if (filteredPages.value[selectedIndex.value]) {
+      goToPage(filteredPages.value[selectedIndex.value].path)
+    }
+  }
 }
 
-const executeAction = (action) => {
-  saveQuery(query.value)
-  action.action?.()
+const executeCommand = (cmd) => {
+  cmd.action()
   close()
 }
 
 const goToBlogger = (id) => {
-  saveQuery(query.value)
   router.push(`/blogger/${id}`)
   close()
 }
 
 const goToPage = (path) => {
-  saveQuery(query.value)
-  router.push(path)
+  router.push(path.startsWith('/') ? path : '/' + path)
   close()
 }
 
@@ -415,135 +462,249 @@ const toggleTheme = () => {
   close()
 }
 
-const getColor = (str) => {
-  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
-  if (!str) return colors[0]
+const highlightMatch = (text) => {
+  if (!query.value || !text) return text
+  return pinyinHighlight(text, query.value)
+}
+
+const getCategoryColor = (category) => {
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
   let hash = 0
-  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  if (category) {
+    for (let i = 0; i < category.length; i++) {
+      hash = category.charCodeAt(i) + ((hash << 5) - hash)
+    }
+  }
   return colors[Math.abs(hash) % colors.length]
 }
 
-const getStatusClass = (status) => {
-  const map = { '初次联系': 's-init', '洽谈中': 's-talk', '已合作': 's-ok', '已拒绝': 's-no', '暂停': 's-pause' }
-  return map[status] || ''
-}
-
 const loadBloggers = async () => {
-  if (isLoadingBloggers.value) return
-  isLoadingBloggers.value = true
   try {
-    const res = await bloggerListAPI({ page: 1, pageSize: 200 })
-    if (res.code === 200) bloggers.value = res.data?.list || res.data || []
+    const res = await bloggerListAPI({ page: 1, pageSize: 100 })
+    console.log('博主API返回:', res)
+    if (res.code === 200) {
+      const list = res.data?.list || res.data || []
+      console.log('博主列表:', list.length, '条')
+      bloggers.value = list.map(b => ({
+        ...b,
+        keywords: [b.nickname, b.category, b.platform, b.status].filter(Boolean)
+      }))
+    } else {
+      console.warn('博主API返回非200:', res.code, res.message)
+    }
   } catch (e) {
-    bloggers.value = []
-  } finally {
-    isLoadingBloggers.value = false
+    console.error('加载博主列表失败', e)
   }
 }
 
 const open = () => {
   query.value = ''
   selectedIndex.value = 0
-  activeFilter.value = null
+  activeTab.value = 'all'
   loadBloggers()
-  nextTick(() => searchInput.value?.focus())
 }
 
-watch(query, () => { selectedIndex.value = 0 })
-watch(isOpen, val => { if (val) open() })
+const onOverlayEntered = () => {
+  focusInput()
+  setTimeout(() => {
+    overlayRef.value?.focus()
+  }, 100)
+}
 
-onMounted(() => window.addEventListener('open-command-palette', () => { isOpen.value = true; open() }))
-onUnmounted(() => window.removeEventListener('open-command-palette', () => {}))
+const focusInput = () => {
+  const tryFocus = (retries = 10) => {
+    if (retries <= 0) return
+    const el = searchInput.value
+    if (el && document.contains(el)) {
+      el.focus()
+      el.select()
+    } else {
+      requestAnimationFrame(() => tryFocus(retries - 1))
+    }
+  }
+  requestAnimationFrame(() => tryFocus())
+}
+
+watch(isOpen, (val) => {
+  if (val) {
+    open()
+    focusInput()
+  }
+})
+
+watch(query, () => {
+  selectedIndex.value = 0
+})
+
+watch(activeTab, () => {
+  selectedIndex.value = 0
+})
+
+const handleOpenCommandPalette = () => {
+  isOpen.value = true
+  open()
+}
+
+onMounted(() => {
+  window.addEventListener('open-command-palette', handleOpenCommandPalette)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('open-command-palette', handleOpenCommandPalette)
+})
 </script>
 
 <style scoped>
-.cmd-overlay {
+.command-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 6vh;
+  padding-top: 12vh;
   z-index: 9999;
 }
 
-.cmd-palette {
-  width: 94%;
-  max-width: 720px;
+.command-palette {
+  width: 90%;
+  max-width: 700px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.24);
   overflow: hidden;
-  max-height: 72vh;
+  max-height: 75vh;
   display: flex;
   flex-direction: column;
 }
 
-.cmd-search {
+.command-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.command-search-wrapper {
   display: flex;
   align-items: center;
   gap: 12px;
+  background: var(--bg-hover);
+  border: 2px solid transparent;
+  border-radius: 12px;
   padding: 0 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  transition: all 0.2s;
 }
 
-.cmd-icon {
+.command-search-wrapper:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+  background: var(--bg-card);
+}
+
+.search-icon {
   width: 20px;
   height: 20px;
-  color: var(--text-muted);
+  color: var(--primary);
   flex-shrink: 0;
 }
 
-.cmd-input {
+.command-input {
   flex: 1;
-  height: 56px;
+  height: 48px;
   background: transparent;
   border: none;
   font-size: 16px;
   color: var(--text-primary);
   outline: none;
+  font-family: inherit;
 }
 
-.cmd-input::placeholder { color: var(--text-muted); }
+.command-input::placeholder {
+  color: var(--text-muted);
+}
 
-.cmd-filter {
+.clear-btn,
+.esc-hint {
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clear-btn:hover,
+.esc-hint:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.command-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.tab-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.tab-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
   background: var(--primary);
   color: white;
-  border-radius: 6px;
-  font-size: 12px;
+  font-weight: 500;
 }
 
-.cmd-filter button {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
+.tab-count {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 4px;
 }
 
-.cmd-body {
+.tab-btn.active .tab-count {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.command-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
-  min-height: 280px;
-  max-height: 520px;
+  min-height: 200px;
+  max-height: 450px;
 }
 
-.cmd-section {
+.all-results {
+  padding: 4px 0;
+}
+
+.result-group {
   margin-bottom: 4px;
 }
 
-.section-label {
-  padding: 6px 16px;
+.group-label {
+  padding: 8px 16px 4px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
@@ -551,65 +712,59 @@ onUnmounted(() => window.removeEventListener('open-command-palette', () => {}))
   letter-spacing: 0.5px;
 }
 
-.section-label .count {
-  font-weight: 400;
-  margin-left: 4px;
-}
-
-.cmd-row-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.cmd-row {
+.result-item {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
   cursor: pointer;
-  transition: background 0.1s;
-  border-left: 3px solid transparent;
+  transition: all 0.15s;
+  margin: 2px 8px;
+  border-radius: 10px;
 }
 
-.cmd-row:hover { background: var(--bg-hover); }
-
-.cmd-row.selected {
-  background: linear-gradient(90deg, rgba(249,115,22,0.1) 0%, transparent 100%);
-  border-left-color: var(--primary);
+.result-item:hover {
+  background: var(--bg-hover);
 }
 
-.row-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+.result-item.selected {
+  background: rgba(249, 115, 22, 0.12);
+}
+
+.item-icon,
+.item-avatar,
+.command-icon,
+.page-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 18px;
   flex-shrink: 0;
 }
 
-.row-avatar {
-  width: 32px;
-  height: 32px;
+.item-avatar {
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: white;
-  flex-shrink: 0;
-  overflow: hidden;
 }
 
-.row-avatar img {
+.item-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.row-content {
+.item-avatar span {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+}
+
+.item-info,
+.command-info,
+.blogger-info,
+.page-info {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -617,23 +772,20 @@ onUnmounted(() => window.removeEventListener('open-command-palette', () => {}))
   gap: 2px;
 }
 
-.row-title {
+.item-name,
+.command-name,
+.blogger-name,
+.page-name {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
-.row-title :deep(mark) {
-  background: rgba(249,115,22,0.25);
-  color: var(--primary);
-  border-radius: 2px;
-  padding: 0 1px;
-}
-
-.row-desc, .row-path {
+.item-desc,
+.command-desc,
+.blogger-meta,
+.page-path {
   font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
@@ -641,121 +793,206 @@ onUnmounted(() => window.removeEventListener('open-command-palette', () => {}))
   text-overflow: ellipsis;
 }
 
-.row-meta {
+.item-shortcut,
+.command-shortcut {
   display: flex;
-  gap: 6px;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
-.meta-tag {
-  font-size: 11px;
-  padding: 1px 6px;
+.item-shortcut kbd,
+.command-shortcut kbd {
+  padding: 3px 7px;
   background: var(--bg-secondary);
-  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: inherit;
+}
+
+.item-arrow,
+.blogger-arrow,
+.page-arrow {
+  color: var(--text-muted);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.command-list,
+.blogger-list,
+.page-list {
+  padding: 8px;
+}
+
+.command-item,
+.blogger-item,
+.page-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.command-item:hover,
+.blogger-item:hover,
+.page-item:hover {
+  background: var(--bg-hover);
+}
+
+.command-item.selected,
+.blogger-item.selected,
+.page-item.selected {
+  background: rgba(249, 115, 22, 0.12);
+}
+
+.blogger-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.blogger-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.blogger-avatar span {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+}
+
+.empty-state {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.empty-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.recent-hint {
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.recent-hint p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.feature-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.feature-list span {
+  padding: 6px 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
-.meta-tag.s-init { background: rgba(59,130,246,0.15); color: var(--info); }
-.meta-tag.s-talk { background: rgba(249,115,22,0.15); color: var(--primary); }
-.meta-tag.s-ok { background: rgba(34,197,94,0.15); color: var(--success); }
-.meta-tag.s-no { background: rgba(239,68,68,0.15); color: var(--danger); }
-.meta-tag.s-pause { background: rgba(107,114,128,0.15); color: var(--text-tertiary); }
-
-.row-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  background: var(--primary);
-  color: white;
-  border-radius: 10px;
-  flex-shrink: 0;
+.highlight {
+  background: rgba(249, 115, 22, 0.25);
+  color: var(--primary);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 500;
 }
 
-.row-shortcut {
-  padding: 3px 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 11px;
-  color: var(--text-muted);
-  font-family: inherit;
-  flex-shrink: 0;
-}
-
-.row-arrow {
-  color: var(--text-muted);
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.cmd-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 48px 24px;
-  color: var(--text-muted);
-}
-
-.empty-icon { font-size: 36px; }
-
-.cmd-loading {
-  display: flex;
-  justify-content: center;
-  padding: 40px;
-}
-
-.cmd-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--border-color);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.cmd-footer {
+.command-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
   background: var(--bg-secondary);
-  border-top: 1px solid var(--border-color);
 }
 
-.footer-keys {
+.footer-hint {
   display: flex;
-  gap: 16px;
-}
-
-.footer-keys span {
+  gap: 12px;
   font-size: 11px;
   color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
-.footer-keys kbd {
-  padding: 2px 5px;
-  background: var(--bg-card);
+.footer-hint kbd {
+  padding: 2px 6px;
+  background: var(--bg-hover);
   border: 1px solid var(--border-color);
-  border-radius: 3px;
+  border-radius: 4px;
   font-size: 10px;
-  font-family: inherit;
+  margin-right: 2px;
 }
 
-.footer-info {
-  font-size: 12px;
-  color: var(--text-secondary);
-  max-width: 180px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.footer-stats {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
-.query-row .row-icon { font-size: 14px; }
+.command-fade-enter-active,
+.command-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
 
-.command-fade-enter-active, .command-fade-leave-active { transition: all 0.15s ease; }
-.command-fade-enter-from, .command-fade-leave-to { opacity: 0; transform: scale(0.97) translateY(-8px); }
+.command-fade-enter-active .command-palette,
+.command-fade-leave-active .command-palette {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.command-fade-enter-from,
+.command-fade-leave-to {
+  opacity: 0;
+}
+
+.command-fade-enter-from .command-palette,
+.command-fade-leave-to .command-palette {
+  transform: scale(0.95) translateY(-10px);
+  opacity: 0;
+}
+
+@media (max-width: 768px) {
+  .command-overlay {
+    padding-top: 8vh;
+  }
+
+  .command-palette {
+    width: 96%;
+    max-height: 85vh;
+  }
+
+  .command-body {
+    max-height: 350px;
+  }
+
+  .footer-hint {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .command-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
 </style>

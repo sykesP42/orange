@@ -32,8 +32,8 @@ describe('CommandPalette', () => {
       expect(createWrapper().vm.query).toBe('')
     })
 
-    it('activeTab defaults to commands', () => {
-      expect(createWrapper().vm.activeTab).toBe('commands')
+    it('activeTab defaults to all', () => {
+      expect(createWrapper().vm.activeTab).toBe('all')
     })
 
     it('selectedIndex is a number (0)', () => {
@@ -47,35 +47,42 @@ describe('CommandPalette', () => {
     })
   })
 
-  describe('search history integration', () => {
-    it('searchHistory is an array', () => {
+  describe('search functionality', () => {
+    it('commands list is populated', () => {
       const w = createWrapper()
-      expect(Array.isArray(w.vm.searchHistory)).toBe(true)
+      expect(w.vm.commands.length).toBeGreaterThan(0)
     })
 
-    it('saveToHistory exists', () => {
-      expect(typeof createWrapper().vm.saveToHistory).toBe('function')
+    it('pages list is populated', () => {
+      const w = createWrapper()
+      expect(w.vm.pages.length).toBeGreaterThan(0)
     })
 
-    it('clearHistory exists', () => {
-      expect(typeof createWrapper().vm.clearHistory).toBe('function')
+    it('filteredCommands returns all commands when no query', () => {
+      const w = createWrapper()
+      expect(w.vm.filteredCommands.length).toBe(w.vm.commands.length)
+    })
+
+    it('filteredPages returns all pages when no query', () => {
+      const w = createWrapper()
+      expect(w.vm.filteredPages.length).toBe(w.vm.pages.length)
     })
   })
 
   describe('highlightMatch utility', () => {
-    it('wraps matched text in <mark class="hl">', () => {
-      const w = createWrapper()
-      const result = w.vm.highlightMatch('录入博主', '录')
-      expect(result).toContain('<mark')
-      expect(result).toContain('hl')
-    })
-
-    it('returns original text on no match', () => {
-      expect(createWrapper().vm.highlightMatch('hello', 'xyz')).toBe('hello')
-    })
-
     it('returns original text for empty query', () => {
       expect(createWrapper().vm.highlightMatch('test', '')).toBe('test')
+    })
+
+    it('returns original text when text is empty', () => {
+      expect(createWrapper().vm.highlightMatch('', 'test')).toBe('')
+    })
+
+    it('highlights English substring match', () => {
+      const w = createWrapper()
+      w.vm.query = 'hello'
+      const result = w.vm.highlightMatch('hello world')
+      expect(result).toContain('<mark')
     })
   })
 })

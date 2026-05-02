@@ -15,15 +15,6 @@ api.interceptors.request.use(config => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
-
-  const csrfCookie = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('XSRF-TOKEN='))
-  if (csrfCookie) {
-    const csrfToken = decodeURIComponent(csrfCookie.split('=').slice(1).join('='))
-    config.headers['X-XSRF-TOKEN'] = csrfToken
-  }
-
   return config
 })
 
@@ -32,7 +23,13 @@ api.interceptors.response.use(
     if (response.config.responseType === 'blob') {
       return response.data
     }
-    return response.data
+    const data = response.data
+    if (data && data.code === 401) {
+      localStorage.clear()
+      window.location.href = '/login'
+      return Promise.reject(new Error(data.message || 'Unauthorized'))
+    }
+    return data
   },
   async error => {
     const config = error.config
@@ -49,7 +46,7 @@ api.interceptors.response.use(
 
     if (config._retry < MAX_RETRIES && !error.response?.status?.toString().startsWith('4')) {
       config._retry += 1
-      console.log(`API 请求重试 (${config._retry}/${MAX_RETRIES}): ${config.url}`)
+      console.warn(`API 请求重试 (${config._retry}/${MAX_RETRIES}): ${config.url}`)
       await delay(RETRY_DELAY * config._retry)
       return api(config)
     }
@@ -67,13 +64,19 @@ export const forgotPasswordAPI = () => Promise.reject(new Error('功能暂未实
 
 export const bloggerListAPI = (params) => api.get('/blogger/list', { params })
 
+export const bloggerSuggestionsAPI = (keyword) => api.get('/blogger/suggestions', { params: { keyword } })
+
 export const bloggerMyAPI = (params) => api.get('/blogger/my', { params })
+
+export const getMyBloggersAPI = (params) => api.get('/blogger/my', { params })
 
 export const bloggerAddAPI = (data) => api.post('/blogger/add', data)
 
 export const bloggerDeleteAPI = (id) => api.post('/admin/blogger/delete', { id })
 
 export const bloggerStatAPI = () => api.get('/blogger/stat')
+
+export const getBloggerCharts = () => api.get('/blogger/charts')
 
 export const getBloggerChartsAPI = () => api.get('/blogger/charts')
 
@@ -91,6 +94,8 @@ export const cooperationListAPI = (params) => api.get('/cooperation/list', { par
 export const cooperationAddAPI = (data) => api.post('/cooperation/add', data)
 export const cooperationUpdateAPI = (id, data) => api.put(`/cooperation/${id}`, data)
 export const cooperationDeleteAPI = (id) => api.delete(`/cooperation/${id}`)
+
+export const getCategoryList = () => api.get('/category/list')
 
 export const categoryListAPI = () => api.get('/category/list')
 
@@ -110,9 +115,13 @@ export const productUpdateAPI = (id, data) => api.put(`/products/${id}`, data)
 
 export const productDeleteAPI = (id) => api.delete(`/products/${id}`)
 
+export const userListAPI = () => api.get('/users/public')
+
 export const deactivateUserAPI = (id) => api.put(`/users/${id}`, { status: 'inactive' })
 
 export const deleteUserAPI = (id) => api.delete(`/users/${id}`)
+
+export const resetPasswordAPI = (id) => api.post('/admin/users/reset-password', { id })
 
 export const exportAPI = (type, fields) => api.get('/admin/export', { params: { type, fields }, responseType: 'blob' })
 
@@ -136,6 +145,10 @@ export const confirmBloggerTransfer = (data) => api.post(`/blogger/transfers/${d
 
 export const getBloggerTransferRequests = () => api.get('/blogger/transfers')
 
+export const deleteBlogger = (id) => api.post('/admin/blogger/delete', { id })
+
+export const exportData = (type) => api.get('/admin/export', { params: { type }, responseType: 'blob' })
+
 // 用户设置相关API
 export const getUserProfileAPI = () => api.get('/user/profile')
 
@@ -153,26 +166,6 @@ export const batchSetAdminAPI = async (teamId, userIds) => {
   return Promise.all(userIds.map(userId => setTeamAdminAPI(teamId, userId)))
 }
 
-export const getPublicForumsAPI = () => api.get('/public/forums')
-
-export const getPublicForumDetailAPI = (forumId) => api.get(`/public/forums/${forumId}`)
-
-export const getForumPostsAPI = (params) => api.get('/forum/posts', { params })
-export const getForumPostsHotAPI = (params) => api.get('/forum/posts/hot', { params })
-export const getForumPostsCollectedAPI = (params) => api.get('/forum/posts/collected', { params })
-export const searchForumPostsAPI = (params) => api.get('/forum/posts/search', { params })
-export const getForumPostDetailAPI = (id) => api.get(`/forum/posts/${id}`)
-export const getForumPostLikeStatusAPI = (id) => api.get(`/forum/posts/${id}/like-status`)
-export const getForumPostCollectStatusAPI = (id) => api.get(`/forum/posts/${id}/collect-status`)
-export const createForumPostAPI = (data) => api.post('/forum/posts', data)
-export const createForumCommentAPI = (id, data) => api.post(`/forum/posts/${id}/comments`, data)
-export const likeForumPostAPI = (id) => api.post(`/forum/posts/${id}/like`)
-export const collectForumPostAPI = (id) => api.post(`/forum/posts/${id}/collect`)
-export const deleteForumPostAPI = (id) => api.delete(`/forum/posts/${id}`)
-export const deleteForumCommentAPI = (postId, commentId) => api.delete(`/forum/posts/${postId}/comments/${commentId}`)
-export const pinForumPostAPI = (id) => api.post(`/forum/posts/${id}/pin`)
-export const featureForumPostAPI = (id) => api.post(`/forum/posts/${id}/feature`)
-
 export const approveUserAPI = (id) => api.post('/users/approve', { id })
 
 export const rejectUserAPI = (id) => api.put(`/users/${id}`, { status: 'rejected' })
@@ -183,9 +176,10 @@ export const removeAdminAPI = (id) => api.put(`/users/${id}`, { role: 'user' })
 export const getTeamsAPI = () => api.get('/teams')
 export const createTeamAPI = (data) => api.post('/teams', data)
 export const updateTeamAPI = (id, data) => api.put(`/teams/${id}`, data)
-export const deleteTeamAPI = (id) => api.delete(`/teams/${id}`)
+export const deleteTeamAPI = (id, force = false) => api.delete(`/teams/${id}${force ? '?force=true' : ''}`)
 export const setUserTeamAPI = (id, team_id) => api.put(`/users/${id}`, { team_id })
 export const updateMyTeamAPI = (team_id) => api.put(`/my/team`, { team_id })
+export const generateInviteCodeAPI = () => api.post('/user/generate-invite-code')
 export const removeTeamMemberAPI = (teamId, userId) => api.delete(`/team/${teamId}/members/${userId}`)
 
 export const getTeamBloggerStatAPI = (team_id) => api.get(`/team/blogger/stat?team_id=${team_id}`)
@@ -236,6 +230,24 @@ export const deleteNotificationAPI = (id) => api.delete(`/notifications/${id}`)
 
 export const batchDeleteNotificationsAPI = (ids) => api.post('/notifications/batch-delete', { ids })
 
+export const sendEmailNotificationAPI = (data) => api.post('/notifications/email-send', data)
+
+export const updateNotificationPrefsAPI = (prefs) => api.put('/notifications/preferences', prefs)
+
+export const getNotificationPrefsAPI = () => api.get('/notifications/preferences')
+
+export const createDataBackupAPI = (label) => api.post('/system/backup', { label })
+
+export const listBackupsAPI = () => api.get('/system/backups')
+
+export const restoreBackupAPI = (backupId) => api.post(`/system/backup/${backupId}/restore`)
+
+export const deleteBackupAPI = (backupId) => api.delete(`/system/backup/${backupId}`)
+
+export const exportAllDataAPI = () => api.get('/system/export')
+
+export const setInvalidBloggerAPI = (id, data) => api.post(`/blogger/${id}/invalid`, data)
+
 export const invalidBloggerListAPI = (params) => api.get('/blogger/invalid/list', { params })
 
 export const bindInvalidBloggerAPI = () => Promise.reject(new Error('功能暂未实现'))
@@ -247,6 +259,10 @@ export const submitBloggerEvaluationAPI = (data) => api.post('/blogger/evaluatio
 export const getBloggerEvaluationAPI = (blogger_id) => api.get(`/blogger/evaluation/${blogger_id}`)
 
 export const getExpiringBloggersWithoutContactAPI = () => api.get('/blogger/expiring-without-contact')
+
+export const getInviteInfoAPI = () => api.get('/user/invite-info')
+export const getBloggerAddStatsAPI = () => api.get('/user/blogger-add-stats')
+export const getInviteCodeRecordsAPI = () => api.get('/user/invite-code-records')
 
 export const getAnnouncementsAPI = () => api.get('/announcements')
 
@@ -310,7 +326,11 @@ export const getBloggerTagsAPI = (bloggerId) => api.get(`/blogger/${bloggerId}/t
 export const setBloggerTagsAPI = (bloggerId, tagIds) => api.post(`/blogger/${bloggerId}/tags`, { tag_ids: tagIds })
 export const getBloggersByTagAPI = (tagId, page = 1, pageSize = 20) => api.get('/bloggers/by-tag', { params: { tag_id: tagId, page, pageSize } })
 
+export const createCalendarEventAPI = (data) => api.post('/calendar/events', data)
+
 export const getCalendarEventsAPI = (start, end) => api.get('/calendar/events', { params: { start, end } })
+
+export const deleteCalendarEventAPI = (id) => api.delete(`/calendar/events/${id}`)
 
 export const getTemplatesAPI = () => api.get('/templates')
 export const createTemplateAPI = (data) => api.post('/templates', data)

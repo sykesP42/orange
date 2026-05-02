@@ -57,7 +57,7 @@ defineEmits(['update', 'install', 'dismiss-update', 'dismiss-install'])
 
 .offline-banner {
   background: linear-gradient(90deg, #dc2626, #b91c1c);
-  color: white;
+  color: var(--color-on-brand);
   padding: 0.4rem 1rem;
   text-align: center;
   font-size: 0.8rem;
@@ -72,7 +72,7 @@ defineEmits(['update', 'install', 'dismiss-update', 'dismiss-install'])
 
 .update-banner {
   background: linear-gradient(90deg, #f97316, #ea580c);
-  color: white;
+  color: var(--color-on-brand);
   padding: 0.35rem 1rem;
   display: flex;
   align-items: center;
@@ -84,7 +84,7 @@ defineEmits(['update', 'install', 'dismiss-update', 'dismiss-install'])
 .update-btn {
   background: rgba(255,255,255,0.22);
   border: 1px solid rgba(255,255,255,0.35);
-  color: white;
+  color: var(--color-on-brand);
   padding: 2px 12px;
   border-radius: 6px;
   font-size: 0.78rem;
@@ -102,11 +102,11 @@ defineEmits(['update', 'install', 'dismiss-update', 'dismiss-install'])
   padding: 0 2px;
   line-height: 1;
 }
-.update-dismiss:hover { color: white; }
+.update-dismiss:hover { color: var(--color-on-brand); }
 
 .install-banner {
-  background: linear-gradient(135deg, #059669, #047857);
-  color: white;
+  background: var(--bg-success-gradient);
+  color: var(--color-on-brand);
   padding: 0.35rem 1rem;
   display: flex;
   align-items: center;
@@ -118,7 +118,7 @@ defineEmits(['update', 'install', 'dismiss-update', 'dismiss-install'])
 .install-btn {
   background: rgba(255,255,255,0.22);
   border: 1px solid rgba(255,255,255,0.35);
-  color: white;
+  color: var(--color-on-brand);
   padding: 2px 14px;
   border-radius: 6px;
   font-size: 0.78rem;
@@ -135,7 +135,7 @@ defineEmits(['update', 'install', 'dismiss-update', 'dismiss-install'])
   cursor: pointer;
   padding: 0 2px;
 }
-.install-dismiss:hover { color: white; }
+.install-dismiss:hover { color: var(--color-on-brand); }
 
 .offline-dot-wrapper {
   position: absolute;
@@ -148,7 +148,7 @@ defineEmits(['update', 'install', 'dismiss-update', 'dismiss-install'])
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #ef4444;
+  background: var(--danger);
   animation: pulse-dot 2s ease-in-out infinite;
   box-shadow: 0 0 6px rgba(239,68,68,0.5);
 }

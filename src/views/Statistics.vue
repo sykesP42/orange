@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="statistics">
     <div class="page-header">
       <div class="header-left">
@@ -52,20 +52,9 @@
         </svg>
         团队对接
       </button>
-      <button class="toggle-btn" :class="{ active: viewMode === 'graph' }" @click="switchToGraphView">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="6" cy="6" r="3"/>
-          <circle cx="18" cy="6" r="3"/>
-          <circle cx="12" cy="18" r="3"/>
-          <line x1="8.5" y1="7.5" x2="15.5" y2="7.5"/>
-          <line x1="7.5" y1="8.5" x2="10.5" y2="15.5"/>
-          <line x1="16.5" y1="8.5" x2="13.5" y2="15.5"/>
-        </svg>
-        关系图谱
-      </button>
     </div>
 
-    <div v-if="viewMode === 'blogger'" class="dashboard-container">
+    <div v-show="viewMode === 'blogger'" class="dashboard-container">
     <div class="stats-cards" :class="{ 'edit-mode': layoutEditMode }" @dragover.prevent @drop="handleStatsDrop">
       <div
         v-for="(card, index) in statsCardsOrder"
@@ -142,56 +131,74 @@
       </div>
     </div>
 
-    <div class="charts-grid" :class="{ 'edit-mode': layoutEditMode }" @dragover.prevent @drop="handleChartsDrop">
-      <div
-        v-for="(chart, index) in chartsOrder"
-        :key="chart.id"
-        class="chart-card"
-        :class="{ 'dragging': dragFromCharts === chart.id, 'drag-over': dragOverCharts === chart.id }"
-        :draggable="layoutEditMode"
-        @dragstart="handleChartsDragStart($event, chart.id, 'charts')"
-        @dragend="handleDragEnd"
-        @dragenter="handleDragEnter(chart.id, 'charts')"
-        @dragleave="handleDragLeave('charts')"
-      >
+    <div class="charts-grid" :class="{ 'edit-mode': layoutEditMode }">
+      <div class="chart-card" style="--delay: 0">
         <div v-if="layoutEditMode" class="drag-handle">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>
             <circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>
           </svg>
         </div>
-        <template v-if="chart.id === 'platform'">
-        <div class="chart-header">
-          <h3>平台分布</h3>
-        </div>
+        <div class="chart-header"><h3>平台分布</h3></div>
         <div class="chart-body">
-          <div ref="platformChart" class="chart"></div>
+          <div ref="platformChart" class="chart">
+            <div v-if="!statsData.byPlatform || statsData.byPlatform.length === 0" class="empty-chart">
+              <span>📊</span>
+              <p>暂无平台数据</p>
+            </div>
+          </div>
         </div>
-        </template>
-        <template v-else-if="chart.id === 'category'">
-        <div class="chart-header">
-          <h3>分类统计</h3>
+      </div>
+      <div class="chart-card" style="--delay: 1">
+        <div v-if="layoutEditMode" class="drag-handle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>
+            <circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>
+          </svg>
         </div>
+        <div class="chart-header"><h3>分类统计</h3></div>
         <div class="chart-body">
-          <div ref="categoryChart" class="chart"></div>
+          <div ref="categoryChart" class="chart">
+            <div v-if="!statsData.byCategory || statsData.byCategory.length === 0" class="empty-chart">
+              <span>📊</span>
+              <p>暂无分类数据</p>
+            </div>
+          </div>
         </div>
-        </template>
-        <template v-else-if="chart.id === 'monthly'">
-        <div class="chart-header">
-          <h3>月度录入趋势</h3>
+      </div>
+      <div class="chart-card" style="--delay: 2">
+        <div v-if="layoutEditMode" class="drag-handle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>
+            <circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>
+          </svg>
         </div>
+        <div class="chart-header"><h3>月度录入趋势</h3></div>
         <div class="chart-body">
-          <div ref="monthlyChart" class="chart"></div>
+          <div ref="monthlyChart" class="chart">
+            <div v-if="!statsData.monthly || statsData.monthly.length === 0" class="empty-chart">
+              <span>📈</span>
+              <p>暂无趋势数据</p>
+            </div>
+          </div>
         </div>
-        </template>
-        <template v-else-if="chart.id === 'user'">
-        <div class="chart-header">
-          <h3>团队成员贡献排行</h3>
+      </div>
+      <div class="chart-card" style="--delay: 3">
+        <div v-if="layoutEditMode" class="drag-handle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/>
+            <circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>
+          </svg>
         </div>
+        <div class="chart-header"><h3>团队成员贡献排行</h3></div>
         <div class="chart-body">
-          <div ref="userChart" class="chart"></div>
+          <div ref="userChart" class="chart">
+            <div v-if="!statsData.byUser || statsData.byUser.length === 0" class="empty-chart">
+              <span>👥</span>
+              <p>暂无成员数据</p>
+            </div>
+          </div>
         </div>
-        </template>
       </div>
     </div>
 
@@ -243,7 +250,7 @@
     </div>
     </div>
 
-    <div v-if="viewMode === 'team'">
+    <div v-show="viewMode === 'team'">
     <div class="stats-cards">
       <div class="stat-card" style="--delay: 0">
         <div class="stat-icon total">
@@ -350,7 +357,7 @@
     </div>
     </div>
 
-    <div v-if="viewMode === 'team-blogger'">
+    <div v-show="viewMode === 'team-blogger'">
     <div class="team-blogger-header">
       <div class="team-info-badge" :style="{ backgroundColor: teamBloggerStats.teamInfo?.color || '#6366f1' }">
         <span class="team-name">{{ teamBloggerStats.teamInfo?.name || '我的团队' }}</span>
@@ -487,17 +494,12 @@
       </div>
     </div>
     </div>
-
-    <div v-if="viewMode === 'graph'" class="graph-container">
-      <RelationGraph :bloggers="graphBloggers" />
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
-import RelationGraph from '../components/RelationGraph.vue'
 import { useNotification } from '../stores/notification'
 import { bloggerStatAPI, getBloggerChartsAPI, getTeamsAPI, getTeamBloggerStatAPI, getTeamBloggerChartsAPI, getUsersListAPI, bloggerListAPI } from '../api'
 import { useUserStore } from '../stores/user'
@@ -519,6 +521,13 @@ const stats = ref({
   userCount: 0,
   categoryCount: 0,
   productCount: 0
+})
+
+const statsData = ref({
+  byPlatform: [],
+  byCategory: [],
+  monthly: [],
+  byUser: []
 })
 
 const recentBloggers = ref([])
@@ -713,16 +722,46 @@ const loadCharts = async () => {
   try {
     const res = await getBloggerChartsAPI()
     if (res.code === 200) {
-      const data = res.data
-
-      initPlatformChart(data.byPlatform)
-      initCategoryChart(data.byCategory)
-      initMonthlyChart(data.monthly)
-      initUserChart(data.byUser)
+      const data = res.data || {}
+      // 保存到响应式变量，用于模板中的空状态判断
+      statsData.value = {
+        byPlatform: data.byPlatform || [],
+        byCategory: data.byCategory || [],
+        monthly: data.monthly || [],
+        byUser: data.byUser || []
+      }
+      nextTick(() => {
+        scheduleInitCharts(() => {
+          initPlatformChart(statsData.value.byPlatform)
+          initCategoryChart(statsData.value.byCategory)
+          initMonthlyChart(statsData.value.monthly)
+          initUserChart(statsData.value.byUser)
+        })
+      })
     }
   } catch (error) {
     console.error('加载图表数据失败', error)
   }
+}
+
+const scheduleInitCharts = (fn, targetRef = null, retries = 50) => {
+  const tryInit = (remaining) => {
+    if (remaining <= 0) {
+      console.warn('图表初始化超时')
+      return
+    }
+    const el = targetRef ? targetRef.value : platformChart.value
+    if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+      try {
+        fn()
+      } catch (error) {
+        console.error('图表初始化失败', error)
+      }
+    } else {
+      requestAnimationFrame(() => tryInit(remaining - 1))
+    }
+  }
+  setTimeout(() => tryInit(retries), 100)
 }
 
 const loadTeamStats = async () => {
@@ -750,8 +789,12 @@ const loadTeamStats = async () => {
 
       teamList.value = teamsWithMembers
 
-      initTeamDistChart(teamsWithMembers)
-      initTeamCompareChart(teamsWithMembers)
+      if (viewMode.value === 'team') {
+        scheduleInitCharts(() => {
+          initTeamDistChart(teamsWithMembers)
+          initTeamCompareChart(teamsWithMembers)
+        }, teamDistChart)
+      }
     }
   } catch (error) {
     console.error('加载团队统计数据失败', error)
@@ -763,26 +806,12 @@ const switchToTeamView = () => {
   if (teamStats.value.totalTeams === 0) {
     loadTeamStats()
   }
-  setTimeout(() => {
+  scheduleInitCharts(() => {
+    if (!teamDistChartInstance) initTeamDistChart(teamStats.value.teamDistribution)
+    if (!teamCompareChartInstance) initTeamCompareChart(teamStats.value.teamComparison)
     teamDistChartInstance?.resize()
     teamCompareChartInstance?.resize()
-  }, 100)
-}
-
-const graphBloggers = ref([])
-
-const switchToGraphView = async () => {
-  viewMode.value = 'graph'
-  if (graphBloggers.value.length === 0) {
-    try {
-      const res = await bloggerListAPI({ page: 1, pageSize: 200 })
-      if (res.code === 200) {
-        graphBloggers.value = res.data?.bloggers || res.data || []
-      }
-    } catch (e) {
-      graphBloggers.value = []
-    }
-  }
+  }, teamDistChart)
 }
 
 const switchToTeamBloggerView = async () => {
@@ -800,12 +829,17 @@ const switchToTeamBloggerView = async () => {
   } else if (teamBloggerStats.value.memberCount < 2) {
     warning('团队人数较少，统计数据可能不够准确')
   }
-  setTimeout(() => {
+  scheduleInitCharts(() => {
+    const d = teamBloggerStats.value
+    if (!teamBloggerPlatformChartInstance) initTeamBloggerPlatformChart(d.byPlatform)
+    if (!teamBloggerCategoryChartInstance) initTeamBloggerCategoryChart(d.byCategory)
+    if (!teamBloggerStatusChartInstance) initTeamBloggerStatusChart(d.byStatus)
+    if (!teamBloggerMemberChartInstance) initTeamBloggerMemberChart(d.memberContribution)
     teamBloggerPlatformChartInstance?.resize()
     teamBloggerCategoryChartInstance?.resize()
     teamBloggerStatusChartInstance?.resize()
     teamBloggerMemberChartInstance?.resize()
-  }, 100)
+  }, teamBloggerPlatformChart)
 }
 
 const loadTeamBloggerStats = async () => {
@@ -846,10 +880,12 @@ const loadTeamBloggerStats = async () => {
 
     if (chartRes.code === 200) {
       const chartData = chartRes.data
-      initTeamBloggerPlatformChart(chartData.byPlatform || [])
-      initTeamBloggerCategoryChart(chartData.byCategory || [])
-      initTeamBloggerStatusChart(chartData.byStatus || [])
-      initTeamBloggerMemberChart(chartData.byMember || [])
+      scheduleInitCharts(() => {
+        initTeamBloggerPlatformChart(chartData.byPlatform || [])
+        initTeamBloggerCategoryChart(chartData.byCategory || [])
+        initTeamBloggerStatusChart(chartData.byStatus || [])
+        initTeamBloggerMemberChart(chartData.byMember || [])
+      }, teamBloggerPlatformChart)
     }
   } catch (error) {
     console.error('加载团队对接统计数据失败', error)
@@ -857,7 +893,8 @@ const loadTeamBloggerStats = async () => {
 }
 
 const initTeamBloggerPlatformChart = (data) => {
-  if (!teamBloggerPlatformChart.value) return
+  if (!teamBloggerPlatformChart.value || teamBloggerPlatformChart.value.clientWidth === 0) return
+  try { teamBloggerPlatformChartInstance?.dispose() } catch(e) {}
   teamBloggerPlatformChartInstance = echarts.init(teamBloggerPlatformChart.value)
 
   const option = {
@@ -902,7 +939,8 @@ const initTeamBloggerPlatformChart = (data) => {
 }
 
 const initTeamBloggerCategoryChart = (data) => {
-  if (!teamBloggerCategoryChart.value) return
+  if (!teamBloggerCategoryChart.value || teamBloggerCategoryChart.value.clientWidth === 0) return
+  try { teamBloggerCategoryChartInstance?.dispose() } catch(e) {}
   teamBloggerCategoryChartInstance = echarts.init(teamBloggerCategoryChart.value)
 
   const option = {
@@ -954,7 +992,8 @@ const initTeamBloggerCategoryChart = (data) => {
 }
 
 const initTeamBloggerStatusChart = (data) => {
-  if (!teamBloggerStatusChart.value) return
+  if (!teamBloggerStatusChart.value || teamBloggerStatusChart.value.clientWidth === 0) return
+  try { teamBloggerStatusChartInstance?.dispose() } catch(e) {}
   teamBloggerStatusChartInstance = echarts.init(teamBloggerStatusChart.value)
 
   const statusColors = {
@@ -1011,7 +1050,8 @@ const initTeamBloggerStatusChart = (data) => {
 }
 
 const initTeamBloggerMemberChart = (data) => {
-  if (!teamBloggerMemberChart.value) return
+  if (!teamBloggerMemberChart.value || teamBloggerMemberChart.value.clientWidth === 0) return
+  try { teamBloggerMemberChartInstance?.dispose() } catch(e) {}
   teamBloggerMemberChartInstance = echarts.init(teamBloggerMemberChart.value)
 
   const option = {
@@ -1063,7 +1103,8 @@ const initTeamBloggerMemberChart = (data) => {
 }
 
 const initTeamDistChart = (data) => {
-  if (!teamDistChart.value) return
+  if (!teamDistChart.value || teamDistChart.value.clientWidth === 0) return
+  try { teamDistChartInstance?.dispose() } catch(e) {}
   teamDistChartInstance = echarts.init(teamDistChart.value)
 
   const option = {
@@ -1108,7 +1149,8 @@ const initTeamDistChart = (data) => {
 }
 
 const initTeamCompareChart = (data) => {
-  if (!teamCompareChart.value) return
+  if (!teamCompareChart.value || teamCompareChart.value.clientWidth === 0) return
+  try { teamCompareChartInstance?.dispose() } catch(e) {}
   teamCompareChartInstance = echarts.init(teamCompareChart.value)
 
   const option = {
@@ -1160,31 +1202,15 @@ const initTeamCompareChart = (data) => {
 }
 
 const initPlatformChart = (data) => {
-  if (!platformChart.value) {
-    console.warn('平台图表容器不存在', platformChart.value);
+  if (!platformChart.value) return
+  try { platformChartInstance?.dispose() } catch(e) {}
+  
+  if (!data || data.length === 0) {
+    platformChart.value.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:14px;">暂无平台数据</div>'
     return
   }
   
-  console.log('平台图表容器类型:', typeof platformChart.value);
-  console.log('平台图表容器 instanceof HTMLElement:', platformChart.value instanceof HTMLElement);
-  console.log('平台图表容器 tagName:', platformChart.value.tagName);
-  console.log('平台图表容器 has getContext:', typeof platformChart.value.getContext);
-
-  if (!platformChart.value instanceof HTMLElement) {
-    console.warn('平台图表容器不是 HTMLElement', platformChart.value);
-    return
-  }
-
-  if (platformChartInstance) {
-    platformChartInstance.dispose()
-  }
-
-  try {
-    platformChartInstance = echarts.init(platformChart.value)
-  } catch (e) {
-    console.error('初始化平台图表失败', e)
-    return
-  }
+  platformChartInstance = echarts.init(platformChart.value)
 
   const option = {
     tooltip: {
@@ -1194,7 +1220,8 @@ const initPlatformChart = (data) => {
     legend: {
       orient: 'vertical',
       right: 10,
-      top: 'center'
+      top: 'center',
+      textStyle: { fontSize: 12 }
     },
     series: [{
       name: '平台分布',
@@ -1213,14 +1240,14 @@ const initPlatformChart = (data) => {
       emphasis: {
         label: {
           show: true,
-          fontSize: 20,
+          fontSize: 16,
           fontWeight: 'bold'
         }
       },
       labelLine: {
         show: false
       },
-      data: data || []
+      data: data
     }]
   }
 
@@ -1228,19 +1255,16 @@ const initPlatformChart = (data) => {
 }
 
 const initCategoryChart = (data) => {
-  if (!categoryChart.value || !categoryChart.value instanceof HTMLElement) return
-
-  if (categoryChartInstance) {
-    categoryChartInstance.dispose()
-  }
-
-  try {
-    categoryChartInstance = echarts.init(categoryChart.value)
-  } catch (e) {
-    console.error('初始化分类图表失败', e)
+  if (!categoryChart.value) return
+  try { categoryChartInstance?.dispose() } catch(e) {}
+  
+  if (!data || data.length === 0) {
+    categoryChart.value.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:14px;">暂无分类数据</div>'
     return
   }
-
+  
+  categoryChartInstance = echarts.init(categoryChart.value)
+  
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -1252,6 +1276,7 @@ const initCategoryChart = (data) => {
       left: '3%',
       right: '4%',
       bottom: '3%',
+      top: '10%',
       containLabel: true
     },
     xAxis: {
@@ -1259,11 +1284,13 @@ const initCategoryChart = (data) => {
       data: data.map(item => item.name),
       axisLabel: {
         interval: 0,
-        rotate: 30
+        rotate: 30,
+        fontSize: 11
       }
     },
     yAxis: {
-      type: 'value'
+      type: 'value',
+      axisLabel: { fontSize: 11 }
     },
     series: [{
       name: '博主数量',
@@ -1290,19 +1317,16 @@ const initCategoryChart = (data) => {
 }
 
 const initMonthlyChart = (data) => {
-  if (!monthlyChart.value || !monthlyChart.value instanceof HTMLElement) return
-
-  if (monthlyChartInstance) {
-    monthlyChartInstance.dispose()
-  }
-
-  try {
-    monthlyChartInstance = echarts.init(monthlyChart.value)
-  } catch (e) {
-    console.error('初始化月度图表失败', e)
+  if (!monthlyChart.value) return
+  try { monthlyChartInstance?.dispose() } catch(e) {}
+  
+  if (!data || data.length === 0) {
+    monthlyChart.value.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:14px;">暂无趋势数据</div>'
     return
   }
-
+  
+  monthlyChartInstance = echarts.init(monthlyChart.value)
+  
   const option = {
     tooltip: {
       trigger: 'axis'
@@ -1311,15 +1335,18 @@ const initMonthlyChart = (data) => {
       left: '3%',
       right: '4%',
       bottom: '3%',
+      top: '10%',
       containLabel: true
     },
     xAxis: {
       type: 'category',
       data: data.map(item => item.name),
-      boundaryGap: false
+      boundaryGap: false,
+      axisLabel: { fontSize: 11 }
     },
     yAxis: {
-      type: 'value'
+      type: 'value',
+      axisLabel: { fontSize: 11 }
     },
     series: [{
       name: '录入数量',
@@ -1353,19 +1380,16 @@ const initMonthlyChart = (data) => {
 }
 
 const initUserChart = (data) => {
-  if (!userChart.value || !userChart.value instanceof HTMLElement) return
-
-  if (userChartInstance) {
-    userChartInstance.dispose()
-  }
-
-  try {
-    userChartInstance = echarts.init(userChart.value)
-  } catch (e) {
-    console.error('初始化用户图表失败', e)
+  if (!userChart.value) return
+  try { userChartInstance?.dispose() } catch(e) {}
+  
+  if (!data || data.length === 0) {
+    userChart.value.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:14px;">暂无成员数据</div>'
     return
   }
-
+  
+  userChartInstance = echarts.init(userChart.value)
+  
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -1377,14 +1401,17 @@ const initUserChart = (data) => {
       left: '3%',
       right: '4%',
       bottom: '3%',
+      top: '10%',
       containLabel: true
     },
     xAxis: {
-      type: 'value'
+      type: 'value',
+      axisLabel: { fontSize: 11 }
     },
     yAxis: {
       type: 'category',
-      data: data.map(item => item.name)
+      data: data.map(item => item.name),
+      axisLabel: { fontSize: 11 }
     },
     series: [{
       name: '博主数量',
@@ -1417,6 +1444,10 @@ const handleResize = () => {
   userChartInstance?.resize()
   teamDistChartInstance?.resize()
   teamCompareChartInstance?.resize()
+  teamBloggerPlatformChartInstance?.resize()
+  teamBloggerCategoryChartInstance?.resize()
+  teamBloggerStatusChartInstance?.resize()
+  teamBloggerMemberChartInstance?.resize()
 }
 
 const formatDate = (date) => {
@@ -1433,16 +1464,16 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
-  platformChartInstance?.dispose()
-  categoryChartInstance?.dispose()
-  monthlyChartInstance?.dispose()
-  userChartInstance?.dispose()
-  teamDistChartInstance?.dispose()
-  teamCompareChartInstance?.dispose()
-  teamBloggerPlatformChartInstance?.dispose()
-  teamBloggerCategoryChartInstance?.dispose()
-  teamBloggerStatusChartInstance?.dispose()
-  teamBloggerMemberChartInstance?.dispose()
+  try { platformChartInstance?.dispose() } catch(e) {}
+  try { categoryChartInstance?.dispose() } catch(e) {}
+  try { monthlyChartInstance?.dispose() } catch(e) {}
+  try { userChartInstance?.dispose() } catch(e) {}
+  try { teamDistChartInstance?.dispose() } catch(e) {}
+  try { teamCompareChartInstance?.dispose() } catch(e) {}
+  try { teamBloggerPlatformChartInstance?.dispose() } catch(e) {}
+  try { teamBloggerCategoryChartInstance?.dispose() } catch(e) {}
+  try { teamBloggerStatusChartInstance?.dispose() } catch(e) {}
+  try { teamBloggerMemberChartInstance?.dispose() } catch(e) {}
 })
 </script>
 
@@ -1558,13 +1589,13 @@ onUnmounted(() => {
 }
 
 .toggle-btn:hover:not(:disabled) {
-  border-color: var(--info);
-  color: var(--info);
+  border-color: #3b82f6;
+  color: #3b82f6;
 }
 
 .toggle-btn.active {
-  background: var(--info);
-  border-color: var(--info);
+  background: #3b82f6;
+  border-color: #3b82f6;
   color: white;
 }
 
@@ -1575,13 +1606,13 @@ onUnmounted(() => {
 }
 
 .dark .toggle-btn:hover:not(:disabled) {
-  border-color: var(--info);
-  color: var(--info);
+  border-color: #3b82f6;
+  color: #3b82f6;
 }
 
 .dark .toggle-btn.active {
-  background: var(--info);
-  border-color: var(--info);
+  background: #3b82f6;
+  border-color: #3b82f6;
   color: white;
 }
 
@@ -1668,7 +1699,7 @@ onUnmounted(() => {
 
 .stat-icon.users {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1));
-  color: var(--info);
+  color: #60a5fa;
 }
 
 .stat-icon.categories {
@@ -1754,6 +1785,27 @@ onUnmounted(() => {
 .chart {
   width: 100%;
   height: 300px;
+}
+
+.empty-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+  gap: 12px;
+}
+
+.empty-chart span {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.empty-chart p {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0;
 }
 
 .chart-list {
@@ -2105,15 +2157,5 @@ onUnmounted(() => {
 .detail-section.edit-mode .section-header-wrapper.drag-over {
   border: 2px dashed var(--primary);
   background: rgba(102, 126, 234, 0.05);
-}
-
-.graph-container {
-  padding: 0;
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 </style>

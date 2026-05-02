@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="fab-container" :class="{ open: isOpen, 'dark-mode': isDark }">
     <Transition name="fab-overlay">
       <div v-if="isOpen" class="fab-backdrop" @click="close"></div>
@@ -70,7 +70,7 @@ const items = computed(() => [
     route: '/add',
     shortcut: 'N',
     svgIcon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>',
-    color: '#f97316',
+    color: 'var(--primary)',
   },
   {
     key: 'search',
@@ -78,28 +78,28 @@ const items = computed(() => [
     action: 'command-palette',
     shortcut: 'K',
     svgIcon: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
-    color: '#3b82f6',
+    color: 'var(--info)',
   },
   {
     key: 'calendar',
     label: t('fab.items.calendar'),
     route: '/calendar',
     svgIcon: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
-    color: '#8b5cf6',
+    color: 'var(--purple)',
   },
   {
     key: 'workflow',
     label: t('fab.items.workflow'),
     route: '/workflow',
     svgIcon: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
-    color: '#06b6d4',
+    color: 'var(--info)',
   },
   {
     key: 'kanban',
     label: t('fab.items.kanban'),
     action: 'open-kanban',
     svgIcon: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
-    color: '#10b981',
+    color: 'var(--success)',
   },
 ])
 
@@ -167,7 +167,7 @@ const handleAction = (item) => {
   align-items: center;
   gap: 10px;
   padding: 0;
-  background: white;
+  background: var(--bg-card);
   border: none;
   border-radius: 14px;
   cursor: pointer;
@@ -204,7 +204,7 @@ const handleAction = (item) => {
   min-width: 42px;
   border-radius: 12px;
   font-size: 18px;
-  color: white;
+  color: var(--color-on-brand);
   background: var(--action-color, #f97316);
   transition: background 0.2s;
 }
@@ -241,8 +241,8 @@ const handleAction = (item) => {
   height: 56px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, #f97316, #ea580c);
-  color: white;
+  background: var(--bg-primary-gradient-alt);
+  color: var(--color-on-brand);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -294,15 +294,15 @@ const handleAction = (item) => {
 }
 
 .dark-mode .fab-action {
-  background: #1f2937;
+  background: var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
-.dark-mode .fab-action-label { color: #e5e7eb; }
+.dark-mode .fab-action-label { color: var(--border-color); }
 .dark-mode .fab-shortcut {
-  background: #374151;
+  background: var(--bg-card-hover);
   border-color: var(--text-secondary);
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .fab-overlay-enter-active,

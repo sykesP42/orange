@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="add-page">
     <div class="page-header">
       <h1>录入博主</h1>
@@ -420,6 +420,8 @@ const handleSubmit = async () => {
         notification.success('录入成功！该博主已锁定为您归属')
       }
       router.push('/')
+    } else if (res.code === 4003) {
+      notification.error(res.message || '半个月内添加博主已达上限')
     } else {
       notification.error(res.message || '录入失败')
     }
@@ -544,7 +546,7 @@ onMounted(() => {
   padding: 6px 12px;
   background: transparent;
   border: 1px solid #ef4444;
-  color: var(--danger);
+  color: #ef4444;
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
@@ -552,7 +554,7 @@ onMounted(() => {
 }
 
 .remove-avatar:hover {
-  background: var(--danger);
+  background: #ef4444;
   color: white;
 }
 
@@ -565,7 +567,7 @@ onMounted(() => {
 }
 
 .required {
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .input-wrapper {
@@ -720,7 +722,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--info);
+  color: #60a5fa;
 }
 
 .info-icon svg {
@@ -731,7 +733,7 @@ onMounted(() => {
 .info-content h3 {
   font-size: 14px;
   font-weight: 600;
-  color: var(--info);
+  color: #60a5fa;
   margin-bottom: 10px;
 }
 
@@ -753,7 +755,7 @@ onMounted(() => {
   content: '•';
   position: absolute;
   left: 0;
-  color: var(--info);
+  color: #60a5fa;
 }
 
 .tags-input-wrapper {
@@ -888,7 +890,7 @@ onMounted(() => {
 .recommended-label {
   width: 100%;
   font-size: 12px;
-  color: var(--warning);
+  color: #92400e;
   margin-bottom: 4px;
 }
 
@@ -899,7 +901,7 @@ onMounted(() => {
   border: 1px solid #f59e0b;
   border-radius: 20px;
   font-size: 13px;
-  color: var(--warning);
+  color: #d97706;
   cursor: pointer;
   transition: all 0.2s;
 }

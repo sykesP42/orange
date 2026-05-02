@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="team-home-page" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <div v-if="loading" class="loading-state">
       <div class="loading-spinner"></div>
@@ -233,8 +233,7 @@
                 <div v-for="(member, index) in members.slice(0, 8)" :key="member.id"
                      class="member-avatar-lg reveal" :style="{ '--delay': index * 0.05 }"
                      :class="{ 'is-leader': member.id === team.leader_id }">
-                  <img v-if="member.avatar" :src="member.avatar" :alt="member.real_name" v-avatar />
-                  <span v-else>{{ member.real_name?.charAt(0) || 'U' }}</span>
+                  <Avatar :src="member.avatar" :name="member.real_name" size="md" />
                   <div class="member-tooltip">
                     <strong>{{ member.real_name }}</strong>
                     <span v-if="member.id === team.leader_id" class="leader-tag">组长</span>
@@ -328,8 +327,7 @@
                      class="blogger-mini-card reveal" :style="{ '--delay': 0.3 + index * 0.03 }"
                      @click="goToBloggerDetail(blogger.id)">
                   <div class="mini-avatar" :style="{ backgroundColor: getCategoryColor(blogger.category) }">
-                    <img v-if="blogger.avatar" :src="blogger.avatar" :alt="blogger.nickname" v-avatar />
-                    <span v-else>{{ blogger.nickname?.charAt(0) || '?' }}</span>
+                    <Avatar :src="blogger.avatar" :name="blogger.nickname" size="sm" />
                   </div>
                   <div class="mini-info">
                     <span class="mini-name">{{ blogger.nickname }}</span>
@@ -379,8 +377,7 @@
                     <input type="checkbox" :checked="selectedMembers.includes(member.id)" @click.stop />
                   </div>
                   <div class="member-avatar-md" :style="{ backgroundColor: team.color }">
-                    <img v-if="member.avatar" :src="member.avatar" :alt="member.real_name" v-avatar />
-                    <span v-else>{{ member.real_name?.charAt(0) || 'U' }}</span>
+                    <Avatar :src="member.avatar" :name="member.real_name" size="sm" />
                     <span v-if="member.id === team.leader_id" class="leader-indicator"></span>
                   </div>
                   <div class="member-details">
@@ -441,8 +438,7 @@
               <div class="messages-list">
                 <div v-for="message in messages" :key="message.id" class="message-item" :class="{ unread: !message.is_read }" @click="markAsRead(message)">
                   <div class="message-avatar">
-                    <img v-if="message.sender_avatar" :src="message.sender_avatar" :alt="message.sender_name" v-avatar />
-                    <span v-else>{{ message.sender_name?.charAt(0) || '?' }}</span>
+                    <Avatar :src="message.sender_avatar" :name="message.sender_name" size="sm" />
                   </div>
                   <div class="message-content">
                     <div class="message-header">
@@ -542,8 +538,7 @@
               <div class="blogger-full-grid">
                 <div v-for="blogger in teamBloggerList" :key="blogger.id" class="blogger-card" @click="goToBloggerDetail(blogger.id)">
                   <div class="blogger-avatar" :style="{ backgroundColor: getCategoryColor(blogger.category) }">
-                    <img v-if="blogger.avatar" :src="blogger.avatar" :alt="blogger.nickname" v-avatar />
-                    <span v-else>{{ blogger.nickname?.charAt(0) || '?' }}</span>
+                    <Avatar :src="blogger.avatar" :name="blogger.nickname" size="md" />
                   </div>
                   <div class="blogger-info">
                     <span class="blogger-name">{{ blogger.nickname }}</span>
@@ -621,8 +616,7 @@
                   </div>
                   <div class="post-header" v-if="post">
                     <div class="post-author-avatar">
-                      <img v-if="post.author_avatar" :src="post.author_avatar" :alt="post.author_name || '作者'" v-avatar />
-                      <span v-else>{{ post.author_name?.charAt?.(0) || post.author_username?.charAt?.(0) || '?' }}</span>
+                      <Avatar :src="post.author_avatar" :name="post.author_name || '作者'" size="sm" />
                     </div>
                     <div class="post-author-info">
                       <span class="post-author-name">{{ post.author_name || post.author_username || '匿名用户' }}</span>
@@ -687,8 +681,7 @@
             </div>
             <div class="leader-profile" v-if="leader">
               <div class="leader-avatar" :style="{ backgroundColor: team.color }">
-                <img v-if="leader.avatar" :src="leader.avatar" :alt="leader.real_name" v-avatar />
-                <span v-else>{{ leader.real_name?.charAt(0) || 'L' }}</span>
+                <Avatar :src="leader.avatar" :name="leader.real_name" size="lg" />
               </div>
               <div class="leader-info">
                 <span class="leader-name">{{ leader.real_name }}</span>
@@ -1044,8 +1037,7 @@
             <div class="post-meta">
               <div class="post-author">
                 <div class="author-avatar">
-                  <img v-if="postDetail.author_avatar" :src="postDetail.author_avatar" :alt="postDetail.author_name" v-avatar />
-                  <span v-else>{{ postDetail.author_name?.charAt(0) || '?' }}</span>
+                  <Avatar :src="postDetail.author_avatar" :name="postDetail.author_name" size="md" />
                 </div>
                 <div class="author-info">
                   <span class="author-name">{{ postDetail.author_name }}</span>
@@ -1077,8 +1069,7 @@
               <div class="comments-list">
                 <div v-for="comment in postDetail.comments" :key="comment.id" class="comment-item">
                   <div class="comment-avatar">
-                    <img v-if="comment.author_avatar" :src="comment.author_avatar" :alt="comment.author_name" v-avatar />
-                    <span v-else>{{ comment.author_name?.charAt(0) || '?' }}</span>
+                    <Avatar :src="comment.author_avatar" :name="comment.author_name" size="sm" />
                   </div>
                   <div class="comment-body">
                     <div class="comment-header">
@@ -1094,12 +1085,11 @@
               </div>
               <div class="comment-input-area" v-if="isMember || isLeaderOrAdmin">
                 <div class="mention-input-wrapper">
-                  <input type="text" ref="commentInputRef" v-model="postComment" placeholder="写下你的评论...(@提及)" @input="handleCommentInput" @keydown="handleCommentKeydown" @keyup.enter="submitComment" />
+                  <input type="text" id="post-comment-input" name="comment" ref="commentInputRef" v-model="postComment" placeholder="写下你的评论...(@提及)" @input="handleCommentInput" @keydown="handleCommentKeydown" @keyup.enter="submitComment" />
                   <div class="mention-dropdown" v-if="mentionSearchVisible" :style="{ bottom: '100%', top: 'auto' }">
                     <div v-for="user in mentionSuggestions" :key="user.id" class="mention-item" @click="selectMention(user)">
                       <div class="mention-avatar">
-                        <img v-if="user.avatar" :src="user.avatar" :alt="user.real_name" v-avatar />
-                        <span v-else>{{ user.real_name?.charAt(0) }}</span>
+                        <Avatar :src="user.avatar" :name="user.real_name" size="xs" />
                       </div>
                       <div class="mention-info">
                         <span class="mention-name">{{ user.real_name }}</span>
@@ -1181,8 +1171,7 @@
           <div class="users-list">
             <div v-for="user in filteredAllUsers" :key="user.id" class="user-item">
               <div class="user-avatar" :style="{ backgroundColor: getUserColor(user) }">
-                <img v-if="user.avatar" :src="user.avatar" :alt="user.real_name" v-avatar />
-                <span v-else>{{ user.real_name?.charAt(0) || 'U' }}</span>
+                <Avatar :src="user.avatar" :name="user.real_name" size="sm" />
               </div>
               <div class="user-info">
                 <span class="user-name">{{ user.real_name }}</span>
@@ -1245,6 +1234,7 @@ import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
 import { useConfirm } from '../utils/confirm'
 import { getTeamsAPI, updateTeamAPI, setUserTeamAPI, getPublicUsersAPI, updateMyTeamAPI, getTeamBloggerStatAPI, getTeamBloggerChartsAPI, uploadTeamLogoAPI, uploadTeamBgAPI, getTeamPostsAPI, createTeamPostAPI, getTeamPostDetailAPI, deleteTeamPostAPI, createTeamPostCommentAPI, likeTeamPostAPI, getTeamPostLikeStatusAPI, pinTeamPostAPI, featureTeamPostAPI, searchTeamPostsAPI, collectTeamPostAPI, getTeamPostCollectStatusAPI, getTeamPostsCollectedAPI, setTeamAdminAPI, getTeamMessagesAPI, sendTeamMessageAPI, markMessageReadAPI, deleteTeamMessageAPI, getTeamOperationLogsAPI, removeTeamMemberAPI, sendPrivateMessageAPI } from '../api'
+import Avatar from '../components/Avatar.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -2285,6 +2275,24 @@ onMounted(() => {
   if (saved) {
     dismissedAnnouncements.value = new Set(JSON.parse(saved))
   }
+  const postId = route.params.postId
+  if (postId) {
+    watch(posts, (postList) => {
+      if (postList.length > 0) {
+        const target = postList.find(p => p.id === parseInt(postId))
+        if (target) {
+          viewPostDetail(target)
+        } else {
+          getTeamPostDetailAPI(teamId.value, postId).then(res => {
+            if (res.code === 200 && res.data) {
+              postDetail.value = res.data
+              postDetailVisible.value = true
+            }
+          })
+        }
+      }
+    }, { immediate: true, once: true })
+  }
 })
 
 onUnmounted(() => {
@@ -2721,7 +2729,7 @@ watch(() => route.params.teamId, () => {
 }
 
 .badge-danger {
-  background: var(--danger) !important;
+  background: #ef4444 !important;
 }
 
 .nav-item.action {
@@ -2729,7 +2737,7 @@ watch(() => route.params.teamId, () => {
 }
 
 .nav-item.danger {
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .nav-item.danger:hover {
@@ -3303,11 +3311,11 @@ watch(() => route.params.teamId, () => {
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  background: var(--bg-hover);
+  background: #f3f4f6;
   border: none;
   border-radius: 10px;
   font-size: 13px;
-  color: var(--text-primary);
+  color: #1f2937;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -3514,7 +3522,7 @@ html.dark .modal-overlay {
 }
 
 .modal {
-  background: var(--bg-card) !important;
+  background: #ffffff !important;
   border-radius: 20px !important;
   width: 90% !important;
   max-width: 500px !important;
@@ -3540,8 +3548,8 @@ html.dark .modal-overlay {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 2px solid var(--border-color);
-  background: var(--bg-card-hover);
+  border-bottom: 2px solid #e5e7eb;
+  background: #f9fafb;
 }
 
 .modal-header h3 {
@@ -3606,7 +3614,7 @@ html.dark .modal-overlay {
 
 .modal-body {
   padding: 24px;
-  background: var(--bg-card);
+  background: #ffffff;
 }
 
 .logs-modal .modal-body {
@@ -3628,8 +3636,8 @@ html.dark .modal-overlay {
   display: flex;
   gap: 12px;
   padding: 12px;
-  background: var(--bg-card-hover);
-  border: 1px solid var(--border-color);
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
 }
 
@@ -3639,8 +3647,8 @@ html.dark .modal-overlay {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 16px;
 }
@@ -3674,7 +3682,7 @@ html.dark .modal-overlay {
   gap: 12px;
   padding: 20px 24px;
   border-top: 2px solid #e5e7eb;
-  background: var(--bg-card-hover);
+  background: #f9fafb;
 }
 
 .form-field {
@@ -4094,7 +4102,7 @@ html.dark .post-detail-modal-wrapper {
   height: 32px;
   border-radius: 8px;
   border: none;
-  background: var(--bg-hover);
+  background: #f3f4f6;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -4113,7 +4121,7 @@ html.dark .post-detail-modal-wrapper {
 }
 
 .modal-close-btn:hover {
-  background: var(--danger);
+  background: #ef4444;
 }
 
 .modal-action-btn svg, .modal-close-btn svg {
@@ -4629,7 +4637,7 @@ html.dark .post-detail-modal-wrapper {
 }
 
 .badge-danger {
-  background: var(--danger);
+  background: #ef4444;
   color: white;
 }
 
@@ -4906,7 +4914,7 @@ html.dark .post-detail-modal-wrapper {
   position: absolute;
   top: -2px;
   right: 2px;
-  background: var(--danger);
+  background: #ef4444;
   color: white;
   font-size: 10px;
   padding: 1px 5px;

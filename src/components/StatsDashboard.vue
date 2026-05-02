@@ -72,7 +72,7 @@ const stats = computed(() => [
     key: 'total',
     label: '博主总数',
     value: props.total,
-    color: '#f97316',
+    color: 'var(--primary)',
     icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     trend: props.weekGrowth > 0 ? 'up' : props.weekGrowth < 0 ? 'down' : 'flat',
     trendText: props.weekGrowth > 0 ? `+${props.weekGrowth}%` : props.weekGrowth < 0 ? `${props.weekGrowth}%` : '持平'
@@ -81,7 +81,7 @@ const stats = computed(() => [
     key: 'active',
     label: '合作中',
     value: props.activeCount,
-    color: '#22c55e',
+    color: 'var(--success)',
     icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
     trend: props.cooperationRate > 50 ? 'up' : 'flat',
     trendText: `${props.cooperationRate}% 转化率`
@@ -90,7 +90,7 @@ const stats = computed(() => [
     key: 'pending',
     label: '跟进中',
     value: props.pendingCount,
-    color: '#3b82f6',
+    color: 'var(--info)',
     icon: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
     trend: props.pendingCount > 3 ? 'up' : 'flat',
     trendText: props.todayNew > 0 ? `今日+${props.todayNew}` : '待处理'
@@ -99,7 +99,7 @@ const stats = computed(() => [
     key: 'invalid',
     label: '待处理',
     value: props.invalidCount,
-    color: '#ef4444',
+    color: 'var(--danger)',
     icon: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
     trend: props.invalidCount > 0 ? 'down' : 'flat',
     trendText: props.invalidCount > 0 ? '需处理' : '已清零'
@@ -107,10 +107,10 @@ const stats = computed(() => [
 ])
 
 const quickActions = [
-  { label: '录入博主', emit: 'add', color: '#f97316', icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>' },
-  { label: '失效处理', emit: 'invalid', color: '#ef4444', icon: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' },
-  { label: '看板视图', emit: 'kanban', color: '#8b5cf6', icon: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' },
-  { label: '工作流', emit: 'workflow', color: '#ec4899', icon: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>' }
+  { label: '录入博主', emit: 'add', color: 'var(--primary)', icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>' },
+  { label: '失效处理', emit: 'invalid', color: 'var(--danger)', icon: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' },
+  { label: '看板视图', emit: 'kanban', color: 'var(--purple)', icon: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' },
+  { label: '工作流', emit: 'workflow', color: 'var(--purple)', icon: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>' }
 ]
 
 const recentActivity = computed(() => {
@@ -212,8 +212,8 @@ function formatNumber(n) {
 
 .stat-trend svg { width: 13px; height: 13px; }
 
-.stat-trend.up { color: #22c55e; background: rgba(34, 197, 94, 0.08); }
-.stat-trend.down { color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+.stat-trend.up { color: var(--success); background: rgba(34, 197, 94, 0.08); }
+.stat-trend.down { color: var(--danger); background: rgba(239, 68, 68, 0.08); }
 .stat-trend.flat { color: var(--text-muted); background: rgba(128, 128, 128, 0.06); }
 
 .dashboard-row {
@@ -289,10 +289,10 @@ function formatNumber(n) {
   width: 8px; height: 8px;
   border-radius: 50%; flex-shrink: 0;
 }
-.feed-dot.new { background: #3b82f6; }
-.feed-dot.growth { background: #22c55e; }
-.feed-dot.warning { background: #f59e0b; }
-.feed-dot.info { background: #8b5cf6; }
+.feed-dot.new { background: var(--info); }
+.feed-dot.growth { background: var(--success); }
+.feed-dot.warning { background: var(--warning); }
+.feed-dot.info { background: var(--purple); }
 
 .feed-text {
   font-size: 13px;

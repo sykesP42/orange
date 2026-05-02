@@ -4,7 +4,7 @@
       <div v-if="visible" class="shortcut-help-overlay" @click.self="close">
         <div class="shortcut-help-panel">
           <div class="shortcut-help-header">
-            <h3>{{ t('shortcuts.title') }}</h3>
+            <h3>⌨️ 快捷键</h3>
             <button class="close-btn" @click="close">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -33,49 +33,44 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-
-const { t } = useI18n()
-
 defineProps({
   visible: Boolean
 })
 
 const emit = defineEmits(['update:visible', 'close'])
 
-const shortcutGroups = computed(() => [
+const shortcutGroups = [
   {
-    label: t('shortcuts.groups.navigation'),
+    label: '导航',
     items: [
-      { desc: t('shortcuts.items.commandPalette'), keys: ['Ctrl+Alt', 'K'] },
-      { desc: t('shortcuts.items.home'), keys: ['G', 'H'] },
-      { desc: t('shortcuts.items.addBlogger'), keys: ['Ctrl+Alt', 'N'] },
-      { desc: t('shortcuts.items.profile'), keys: ['G', 'M'] },
-      { desc: t('shortcuts.items.myBloggers'), keys: ['G', 'B'] },
-      { desc: t('shortcuts.items.teamCenter'), keys: ['G', 'T'] },
-      { desc: t('shortcuts.items.forums'), keys: ['G', 'F'] },
-      { desc: t('shortcuts.items.chat'), keys: ['G', 'C'] },
-      { desc: t('shortcuts.items.statistics'), keys: ['G', 'S'] },
-      { desc: t('shortcuts.items.admin'), keys: ['G', 'D'] },
+      { desc: '命令面板', keys: ['Ctrl', 'K'] },
+      { desc: '首页', keys: ['G', 'H'] },
+      { desc: '录入博主', keys: ['G', 'A'] },
+      { desc: '个人中心', keys: ['G', 'M'] },
+      { desc: '我的博主', keys: ['G', 'B'] },
+      { desc: '团队中心', keys: ['G', 'T'] },
+      { desc: '公共论坛', keys: ['G', 'F'] },
+      { desc: '私信', keys: ['G', 'C'] },
+      { desc: '数据统计', keys: ['G', 'S'] },
+      { desc: '管理后台', keys: ['G', 'D'] },
     ]
   },
   {
-    label: t('shortcuts.groups.actions'),
+    label: '操作',
     items: [
-      { desc: t('shortcuts.items.quickNote'), keys: ['Ctrl+Alt', 'Q'] },
-      { desc: t('shortcuts.items.toggleTheme'), keys: ['Ctrl+Alt', 'D'] },
-      { desc: t('shortcuts.items.help'), keys: ['?'] },
+      { desc: '快捷便签', keys: ['Ctrl', 'N'] },
+      { desc: '切换主题', keys: ['Ctrl', 'D'] },
+      { desc: '快捷键帮助', keys: ['?'] },
     ]
   },
   {
-    label: t('shortcuts.groups.general'),
+    label: '通用',
     items: [
-      { desc: t('shortcuts.items.search'), keys: ['/'] },
-      { desc: t('shortcuts.items.closeDialog'), keys: ['Esc'] },
+      { desc: '搜索', keys: ['/'] },
+      { desc: '关闭弹窗', keys: ['Esc'] },
     ]
   }
-])
+]
 
 const close = () => {
   emit('update:visible', false)

@@ -3,6 +3,7 @@
     <div class="search-input-wrapper">
       <el-icon class="search-icon"><Search /></el-icon>
       <input
+        ref="inputRef"
         v-model="inputValue"
         type="text"
         :placeholder="placeholder"
@@ -12,29 +13,38 @@
         @input="handleInput"
         @keydown.enter="handleSearch"
         @keydown.esc="handleClear"
+        @keydown.down.prevent="moveDown"
+        @keydown.up.prevent="moveUp"
       />
-      <el-icon 
-        v-if="modelValue" 
-        class="clear-icon" 
+      <div v-if="isLoading" class="loading-spinner">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="spin">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+        </svg>
+      </div>
+      <el-icon
+        v-else-if="modelValue"
+        class="clear-icon"
         @click="handleClear"
       >
         <CircleClose />
       </el-icon>
     </div>
-    
-    <!-- 搜索历史和热门推荐 -->
+
+    <div v-if="searchModeLabel && isFocus && inputValue" class="search-mode-hint">
+      {{ searchModeLabel }}
+    </div>
+
     <transition name="el-fade-in">
-      <div v-if="isFocus && showSuggestions" class="search-suggestions">
-        <!-- 搜索历史 -->
-        <div v-if="showHistory && searchHistory.length > 0" class="suggestion-section">
+      <div v-if="isFocus && showPanel" class="search-suggestions">
+        <div v-if="showHistory && searchHistoryList.length > 0 && !inputValue" class="suggestion-section">
           <div class="suggestion-header">
             <span class="section-title">搜索历史</span>
             <el-icon class="clear-btn" @click="clearHistory"><Delete /></el-icon>
           </div>
           <div class="suggestion-tags">
             <el-tag
-              v-for="(item, index) in searchHistory"
-              :key="index"
+              v-for="(item, index) in searchHistoryList"
+              :key="'h-' + index"
               size="small"
               class="history-tag"
               @click="selectSuggestion(item)"
@@ -44,17 +54,16 @@
             </el-tag>
           </div>
         </div>
-        
-        <!-- 热门搜索 -->
-        <div v-if="showHotTags && hotTags.length > 0" class="suggestion-section">
+
+        <div v-if="showHotTags && hotTagsList.length > 0 && !inputValue" class="suggestion-section">
           <div class="suggestion-header">
             <span class="section-title">热门搜索</span>
             <el-icon class="refresh-btn" @click="refreshHotTags"><Refresh /></el-icon>
           </div>
           <div class="suggestion-tags">
             <el-tag
-              v-for="(tag, index) in hotTags"
-              :key="index"
+              v-for="(tag, index) in hotTagsList"
+              :key="'hot-' + index"
               size="small"
               class="hot-tag"
               :type="index < 3 ? 'warning' : ''"
@@ -65,31 +74,49 @@
             </el-tag>
           </div>
         </div>
-        
-        <!-- 搜索建议 -->
-        <div v-if="showSuggestions && suggestions.length > 0" class="suggestion-section">
+
+        <div v-if="isLoading" class="suggestion-section loading-section">
+          <div class="loading-dots">
+            <span></span><span></span><span></span>
+          </div>
+          <p class="loading-text">搜索中...</p>
+        </div>
+
+        <div v-else-if="suggestions.length > 0" class="suggestion-section">
           <div class="suggestion-header">
             <span class="section-title">搜索建议</span>
+            <span class="suggestion-count">{{ suggestions.length }} 个结果</span>
           </div>
-          <ul class="suggestion-list">
+          <ul class="suggestion-list" ref="suggestionListRef">
             <li
               v-for="(item, index) in suggestions"
-              :key="index"
+              :key="'s-' + index"
               class="suggestion-item"
               :class="{ 'is-active': activeIndex === index }"
               @mouseenter="activeIndex = index"
-              @click="selectSuggestion(item)"
+              @click="selectSuggestion(item.text || item)"
             >
               <el-icon><Search /></el-icon>
-              <span class="item-text" v-html="highlightKeyword(item)"></span>
+              <span class="item-text" v-html="highlightKeyword(item.text || item)"></span>
+              <span v-if="item.category" class="item-category">{{ item.category }}</span>
             </li>
           </ul>
         </div>
-        
-        <!-- 空状态 -->
-        <div v-if="isFocus && !showHistory && !showHotTags && !suggestions.length" class="empty-suggestions">
-          <el-icon :size="48"><Search /></el-icon>
-          <p>输入关键词开始搜索</p>
+
+        <div v-else-if="inputValue && !isLoading && hasSearched" class="suggestion-section">
+          <div class="empty-suggestions">
+            <el-icon :size="36"><Search /></el-icon>
+            <p>未找到 "{{ inputValue }}" 相关结果</p>
+            <p class="empty-hint">试试拼音搜索，如输入"zfb"匹配"支付宝"</p>
+          </div>
+        </div>
+
+        <div v-if="!inputValue && !showHistory && !showHotTags" class="suggestion-section">
+          <div class="empty-suggestions">
+            <el-icon :size="36"><Search /></el-icon>
+            <p>输入关键词开始搜索</p>
+            <p class="empty-hint">支持中文、拼音首字母、完整拼音搜索</p>
+          </div>
         </div>
       </div>
     </transition>
@@ -97,9 +124,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { Search, CircleClose, Delete, Close, Refresh } from '@element-plus/icons-vue'
-import { useDebounce, SearchHistory, HotSearchTags, SearchSuggestions } from '@/utils/search'
+import { SearchHistory, HotSearchTags } from '@/utils/search'
+import { getSearchMode, highlightMatch } from '@/utils/pinyin-search'
+import { bloggerSuggestionsAPI } from '@/api'
 
 const props = defineProps({
   modelValue: {
@@ -120,11 +149,11 @@ const props = defineProps({
   },
   debounce: {
     type: Number,
-    default: 300
+    default: 200
   },
   maxSuggestions: {
     type: Number,
-    default: 5
+    default: 8
   }
 })
 
@@ -134,60 +163,108 @@ const inputValue = ref(props.modelValue)
 const isFocus = ref(false)
 const activeIndex = ref(-1)
 const suggestions = ref([])
+const isLoading = ref(false)
+const hasSearched = ref(false)
+const inputRef = ref(null)
+const suggestionListRef = ref(null)
 
-// 搜索工具实例
 const searchHistory = new SearchHistory()
 const hotTags = new HotSearchTags()
-const searchSuggestions = new SearchSuggestions()
-
-// 计算属性
-const showSuggestions = computed(() => {
-  return inputValue.value && inputValue.value.trim().length > 0
-})
-
 const searchHistoryList = ref(searchHistory.get())
 const hotTagsList = ref(hotTags.getList())
 
-// 监听输入
-const handleInput = useDebounce((event) => {
-  const value = event.target.value
-  emit('update:modelValue', value)
-  
-  // 获取搜索建议
-  fetchSuggestions(value)
-}, props.debounce)
+let debounceTimer = null
+let abortController = null
 
-// 获取搜索建议（可以替换为 API 调用）
-const fetchSuggestions = async (query) => {
-  if (!query || query.trim().length === 0) {
+const searchModeLabel = computed(() => {
+  if (!inputValue.value) return ''
+  const mode = getSearchMode(inputValue.value)
+  return mode.label || ''
+})
+
+const showPanel = computed(() => {
+  return true
+})
+
+const handleInput = () => {
+  emit('update:modelValue', inputValue.value)
+  activeIndex.value = -1
+
+  if (debounceTimer) clearTimeout(debounceTimer)
+
+  if (!inputValue.value || !inputValue.value.trim()) {
     suggestions.value = []
+    hasSearched.value = false
+    isLoading.value = false
     return
   }
-  
-  // 尝试从缓存获取
-  const cached = searchSuggestions.get(query)
-  if (cached) {
-    suggestions.value = cached
-    return
-  }
-  
-  // TODO: 调用 API 获取搜索建议
-  // const res = await searchSuggestAPI(query)
-  // suggestions.value = res.data
-  
-  // 临时模拟数据
-  searchSuggestions.set(query, [])
-  suggestions.value = []
+
+  isLoading.value = true
+
+  debounceTimer = setTimeout(() => {
+    fetchSuggestions(inputValue.value.trim())
+  }, props.debounce)
 }
 
-// 聚焦
+const fetchSuggestions = async (query) => {
+  if (!query) {
+    suggestions.value = []
+    isLoading.value = false
+    return
+  }
+
+  if (abortController) {
+    abortController.abort()
+  }
+
+  try {
+    abortController = new AbortController()
+    const res = await bloggerSuggestionsAPI(query)
+
+    if (res.code === 200 && res.data) {
+      const results = []
+
+      if (res.data.nicknames && res.data.nicknames.length > 0) {
+        results.push(...res.data.nicknames.slice(0, props.maxSuggestions).map(n => ({
+          text: n.label || n.value || n,
+          category: '博主'
+        })))
+      }
+
+      if (res.data.categories && res.data.categories.length > 0) {
+        results.push(...res.data.categories.slice(0, 3).map(c => ({
+          text: c.label || c.value || c,
+          category: '分类'
+        })))
+      }
+
+      if (res.data.platforms && res.data.platforms.length > 0) {
+        results.push(...res.data.platforms.slice(0, 3).map(p => ({
+          text: p.label || p.value || p,
+          category: '平台'
+        })))
+      }
+
+      suggestions.value = results.slice(0, props.maxSuggestions)
+    } else {
+      suggestions.value = []
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      suggestions.value = []
+    }
+  } finally {
+    isLoading.value = false
+    hasSearched.value = true
+  }
+}
+
 const handleFocus = () => {
   isFocus.value = true
   searchHistoryList.value = searchHistory.get()
   hotTagsList.value = hotTags.getList()
 }
 
-// 失焦
 const handleBlur = () => {
   setTimeout(() => {
     isFocus.value = false
@@ -195,69 +272,113 @@ const handleBlur = () => {
   }, 200)
 }
 
-// 搜索
 const handleSearch = () => {
   const query = inputValue.value.trim()
   if (!query) return
-  
-  // 添加到搜索历史
+
   searchHistory.add(query)
   searchHistoryList.value = searchHistory.get()
-  
-  // 更新热门搜索
+
   hotTags.update(query)
   hotTagsList.value = hotTags.getList()
-  
-  // 触发搜索事件
+
   emit('search', query)
-  
-  // 清空建议
+
   suggestions.value = []
+  isFocus.value = false
 }
 
-// 清空
 const handleClear = () => {
   inputValue.value = ''
   emit('update:modelValue', '')
   suggestions.value = []
   activeIndex.value = -1
+  hasSearched.value = false
+  isLoading.value = false
+  if (inputRef.value) inputRef.value.focus()
 }
 
-// 选择建议
 const selectSuggestion = (value) => {
-  inputValue.value = value
-  emit('update:modelValue', value)
+  const text = typeof value === 'object' ? (value.text || value.label || value.value) : value
+  inputValue.value = text
+  emit('update:modelValue', text)
   handleSearch()
 }
 
-// 删除历史记录
 const removeHistory = (index) => {
   const item = searchHistoryList.value[index]
   searchHistory.remove(item)
   searchHistoryList.value = searchHistory.get()
 }
 
-// 清空历史
 const clearHistory = () => {
   searchHistory.clear()
   searchHistoryList.value = []
 }
 
-// 刷新热门标签
 const refreshHotTags = () => {
   hotTagsList.value = hotTags.getList()
 }
 
-// 高亮关键词
-const highlightKeyword = (text) => {
-  if (!inputValue.value) return text
-  const regex = new RegExp(`(${inputValue.value})`, 'gi')
-  return text.replace(regex, '<span class="highlight">$1</span>')
+const moveDown = () => {
+  if (suggestions.value.length === 0) return
+  if (activeIndex.value < suggestions.value.length - 1) {
+    activeIndex.value++
+  } else {
+    activeIndex.value = 0
+  }
+  nextTick(() => scrollToActive())
 }
 
-// 监听外部值变化
+const moveUp = () => {
+  if (suggestions.value.length === 0) return
+  if (activeIndex.value > 0) {
+    activeIndex.value--
+  } else {
+    activeIndex.value = suggestions.value.length - 1
+  }
+  nextTick(() => scrollToActive())
+}
+
+const scrollToActive = () => {
+  const listEl = suggestionListRef.value
+  if (!listEl) return
+  const activeEl = listEl.children[activeIndex.value]
+  if (!activeEl) return
+
+  const container = listEl.closest('.search-suggestions') || listEl.parentElement
+  if (!container) return
+
+  const containerRect = container.getBoundingClientRect()
+  const activeRect = activeEl.getBoundingClientRect()
+
+  if (activeRect.top < containerRect.top) {
+    container.scrollTop -= (containerRect.top - activeRect.top)
+  } else if (activeRect.bottom > containerRect.bottom) {
+    container.scrollTop += (activeRect.bottom - containerRect.bottom)
+  }
+}
+
+const highlightKeyword = (text) => {
+  if (!inputValue.value || !text) return escapeHtml(text || '')
+  return highlightMatch(text, inputValue.value)
+}
+
+const escapeHtml = (str) => {
+  if (!str) return ''
+  return String(str).replace(/[&<>"'/]/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
+    "'": '&#39;', '/': '&#x2F;'
+  }[c]))
+}
+
 watch(() => props.modelValue, (val) => {
   inputValue.value = val
+})
+
+onUnmounted(() => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  if (abortController) abortController.abort()
 })
 </script>
 
@@ -300,6 +421,7 @@ watch(() => props.modelValue, (val) => {
   box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
 }
 
+.search-input:focus ~ .search-icon,
 .search-input:focus + .search-icon {
   color: var(--primary);
 }
@@ -317,24 +439,59 @@ watch(() => props.modelValue, (val) => {
   color: var(--danger);
 }
 
-/* 搜索建议面板 */
+.loading-spinner {
+  position: absolute;
+  right: 12px;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.search-mode-hint {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  font-size: 11px;
+  color: var(--primary);
+  background: rgba(249, 115, 22, 0.08);
+  padding: 2px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 101;
+}
+
 .search-suggestions {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 24px);
   left: 0;
   right: 0;
   background: var(--bg-card);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-lg, 12px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   border: 1px solid var(--border-color);
-  padding: 16px;
+  padding: 12px;
   z-index: 100;
-  max-height: 400px;
+  max-height: 420px;
   overflow-y: auto;
+  animation: suggestDrop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes suggestDrop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .suggestion-section {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .suggestion-section:last-child {
@@ -345,15 +502,20 @@ watch(() => props.modelValue, (val) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-light, #f0f0f0);
 }
 
 .section-title {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: 600;
+}
+
+.suggestion-count {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .clear-btn, .refresh-btn {
@@ -369,25 +531,25 @@ watch(() => props.modelValue, (val) => {
 .suggestion-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .history-tag, .hot-tag {
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 .history-tag:hover, .hot-tag:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .tag-close {
-  margin-left: 4px;
-  font-size: 12px;
+  margin-left: 2px;
+  font-size: 10px;
 }
 
 .tag-close:hover {
@@ -398,17 +560,16 @@ watch(() => props.modelValue, (val) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   background: var(--danger);
   color: white;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: bold;
   border-radius: 50%;
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
-/* 搜索建议列表 */
 .suggestion-list {
   list-style: none;
   padding: 0;
@@ -418,53 +579,110 @@ watch(() => props.modelValue, (val) => {
 .suggestion-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 10px;
+  padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.15s;
 }
 
 .suggestion-item:hover,
 .suggestion-item.is-active {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover, rgba(249, 115, 22, 0.06));
 }
 
 .suggestion-item .el-icon {
   color: var(--text-muted);
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .item-text {
   flex: 1;
   color: var(--text-primary);
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.item-text :deep(.highlight) {
-  color: var(--primary);
+.item-text :deep(mark.highlight) {
+  background: linear-gradient(120deg, #f97316 0%, #fb923c 100%);
+  color: white;
+  padding: 0 3px;
+  border-radius: 3px;
   font-weight: 600;
 }
 
-/* 空状态 */
+.item-category {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary, #f5f5f5);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.loading-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dotPulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.loading-text {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .empty-suggestions {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 24px 16px;
   color: var(--text-muted);
 }
 
 .empty-suggestions .el-icon {
-  margin-bottom: 16px;
-  opacity: 0.5;
+  margin-bottom: 8px;
+  opacity: 0.4;
 }
 
 .empty-suggestions p {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
 }
 
-/* 移动端优化 */
+.empty-hint {
+  font-size: 11px !important;
+  opacity: 0.6;
+  margin-top: 4px !important;
+}
+
 @media (max-width: 768px) {
   .search-suggestions {
     position: fixed;
@@ -473,7 +691,7 @@ watch(() => props.modelValue, (val) => {
     right: 16px;
     max-height: 60vh;
   }
-  
+
   .search-input {
     height: 40px;
   }

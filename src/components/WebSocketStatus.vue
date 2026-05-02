@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div v-if="showIndicator" class="ws-indicator" :class="statusClass" @click="toggleDetails">
     <span class="ws-dot"></span>
     <span class="ws-text">{{ statusText }}</span>
@@ -121,11 +121,11 @@ onUnmounted(() => {
 }
 
 .ws-indicator.connected .ws-dot {
-  background: var(--success);
+  background: #10b981;
 }
 
 .ws-indicator.disconnected .ws-dot {
-  background: var(--danger);
+  background: #ef4444;
   animation: none;
 }
 
@@ -134,11 +134,11 @@ onUnmounted(() => {
 }
 
 .ws-indicator.connected .ws-text {
-  color: var(--success);
+  color: #10b981;
 }
 
 .ws-indicator.disconnected .ws-text {
-  color: var(--danger);
+  color: #ef4444;
 }
 
 .ws-details {
@@ -186,16 +186,16 @@ onUnmounted(() => {
 }
 
 .status-row .label {
-  color: var(--text-tertiary);
+  color: #6b7280;
 }
 
 .status-row .value {
-  color: var(--text-secondary);
+  color: #374151;
   font-weight: 500;
 }
 
 .status-row .value.connected {
-  color: var(--success);
+  color: #10b981;
 }
 
 .details-footer {

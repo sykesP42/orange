@@ -1,17 +1,8 @@
 <template>
   <div class="layout">
-    <PWAStatusBar
-      :is-online="isOnline"
-      :show-update-banner="showUpdateBanner"
-      :is-installable="isInstallable && !hideInstallPrompt"
-      @update="handleSWUpdate"
-      @install="handleInstallPWA"
-      @dismiss-install="hideInstallPrompt = true"
-    />
-    <SkipToContent />
-    <header class="header" role="banner">
+    <header class="header">
       <div class="header-left">
-        <button class="menu-toggle" @click="showMenu = !showMenu" aria-label="打开菜单" aria-expanded="false">
+        <button class="menu-toggle" @click="showMenu = !showMenu">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="3" y1="12" x2="21" y2="12"/>
             <line x1="3" y1="6" x2="21" y2="6"/>
@@ -35,7 +26,7 @@
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
             <polyline points="9,22 9,12 15,12 15,22"/>
           </svg>
-          <span>{{ $t('nav.home') }}</span>
+          <span>首页</span>
         </router-link>
         <router-link to="/add" class="nav-item" :class="{ active: route.path === '/add' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -43,14 +34,14 @@
             <line x1="12" y1="8" x2="12" y2="16"/>
             <line x1="8" y1="12" x2="16" y2="12"/>
           </svg>
-          <span>{{ $t('nav.addBlogger') }}</span>
+          <span>录入</span>
         </router-link>
         <router-link to="/my" class="nav-item" :class="{ active: route.path === '/my' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
             <circle cx="12" cy="7" r="4"/>
           </svg>
-          <span>{{ $t('nav.my') }}</span>
+          <span>我的</span>
         </router-link>
         <router-link to="/team" class="nav-item" :class="{ active: route.path === '/team' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -59,14 +50,23 @@
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
-          <span>{{ $t('nav.team') }}</span>
+          <span>团队</span>
+        </router-link>
+        <router-link to="/users" class="nav-item" :class="{ active: route.path === '/users' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>用户</span>
         </router-link>
         <router-link v-if="userStore.role === 'admin'" to="/admin" class="nav-item" :class="{ active: route.path === '/admin' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/>
             <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/>
           </svg>
-          <span>{{ $t('nav.admin') }}</span>
+          <span>管理</span>
         </router-link>
         <router-link to="/statistics" class="nav-item" :class="{ active: route.path === '/statistics' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -74,7 +74,7 @@
             <line x1="12" y1="20" x2="12" y2="4"/>
             <line x1="6" y1="20" x2="6" y2="14"/>
           </svg>
-          <span>{{ $t('nav.statistics') }}</span>
+          <span>统计</span>
         </router-link>
         <router-link to="/calendar" class="nav-item" :class="{ active: route.path === '/calendar' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -83,30 +83,26 @@
             <line x1="8" y1="2" x2="8" y2="6"/>
             <line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
-          <span>{{ $t('nav.calendar') }}</span>
+          <span>日历</span>
         </router-link>
         <router-link to="/workflow" class="nav-item" :class="{ active: route.path === '/workflow' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
           </svg>
-          <span>{{ $t('nav.workflow') }}</span>
+          <span>工作流</span>
         </router-link>
       </nav>
 
-      <div class="header-center">
-        <h1 class="page-title">{{ currentPageTitle }}</h1>
-      </div>
-
       <div class="header-right">
-        <button class="command-palette-trigger" @click="openCommandPalette" :title="$t('commandPalette.placeholder')">
+        <button class="command-palette-trigger" @click="openCommandPalette" title="命令面板 (Ctrl+K)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/>
             <line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <span class="trigger-text">{{ $t('app.search') }}</span>
-          <kbd class="shortcut-key">Ctrl+Alt+K</kbd>
+          <span class="trigger-text">搜索</span>
+          <kbd>⌘K</kbd>
         </button>
-        <button class="theme-toggle" @click="themeStore.toggleTheme" :aria-label="themeStore.isDark ? '切换到浅色模式' : '切换到深色模式'">
+        <button class="theme-toggle" @click="themeStore.toggleTheme" :title="themeStore.isDark ? '切换到浅色模式' : '切换到深色模式'">
           <svg v-if="!themeStore.isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
           </svg>
@@ -122,12 +118,14 @@
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
           </svg>
         </button>
-        <LangSwitcher :is-dark="themeStore?.isDark" />
-        <button class="reminder-btn" @click="handleReminderOpen" :class="{ 'has-reminder': reminderStore.hasUnreadReminders }" title="临期提醒">
+        <button v-if="reminderStore.hasUnreadReminders" class="reminder-btn" @click="handleReminderClose" title="临期博主提醒">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          <span v-if="reminderStore.hasUnreadReminders" class="reminder-dot"></span>
+          <span class="reminder-dot"></span>
+        </button>
+        <button v-if="reminderStore.hasUnreadReminders" class="mark-reminders-read-btn" @click="handleMarkAllRemindersRead" title="全部已读">
+          已读
         </button>
         <button class="notification-btn" @click="showNotifications = !showNotifications" :class="{ 'has-unread': unreadNotificationCount > 0 }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -136,40 +134,22 @@
           </svg>
           <span v-if="unreadNotificationCount > 0" class="notification-badge">{{ unreadNotificationCount > 99 ? '99+' : unreadNotificationCount }}</span>
         </button>
-        <div class="user-info" ref="userMenuRef">
-          <button class="user-avatar" @click.stop="showUserMenu = !showUserMenu" aria-label="用户菜单">
+        <div class="user-info">
+          <div class="user-avatar">
             {{ userStore.real_name?.charAt(0) || 'U' }}
-          </button>
-          <div class="user-detail" @click="showUserMenu = !showUserMenu">
+          </div>
+          <div class="user-detail">
             <span class="user-name">{{ userStore.real_name }}</span>
-            <span class="user-role">{{ userStore.role === 'admin' ? $t('userMenu.profile') : $t('nav.my') }}</span>
+            <span class="user-role">{{ userStore.role === 'admin' ? '管理员' : '用户' }}</span>
           </div>
-          <transition name="dropdown-fade">
-          <div v-if="showUserMenu" class="user-dropdown" :class="{ 'dark-mode': themeStore.isDark }">
-            <div class="user-dropdown-header">
-              <div class="user-dropdown-avatar">{{ userStore.real_name?.charAt(0) || 'U' }}</div>
-              <div class="user-dropdown-info">
-                <span class="user-dropdown-name">{{ userStore.real_name }}</span>
-                <span class="user-dropdown-role">{{ userStore.role === 'admin' ? $t('nav.admin') : $t('nav.my') }}</span>
-              </div>
-            </div>
-            <div class="user-dropdown-divider"></div>
-            <router-link to="/my/user-settings" class="user-dropdown-item" @click="showUserMenu = false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              <span>{{ $t('userMenu.settings') }}</span>
-            </router-link>
-            <router-link v-if="userStore.role === 'admin'" to="/admin" class="user-dropdown-item" @click="showUserMenu = false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
-              <span>{{ $t('userMenu.systemManage') }}</span>
-            </router-link>
-            <div class="user-dropdown-divider"></div>
-            <button class="user-dropdown-item logout-item" @click="handleLogout(); showUserMenu = false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              <span>退出登录</span>
-            </button>
-          </div>
-          </transition>
         </div>
+        <button class="logout-btn" @click="handleLogout">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16,17 21,12 16,7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -228,7 +208,10 @@
                 <span v-else>📬</span>
               </div>
               <div class="notification-content">
-                <div class="notification-title">{{ notif.title }}</div>
+                <div class="notification-title">
+                  {{ notif.title }}
+                  <span v-if="notif.priority === 'important'" class="important-badge-inline">重要</span>
+                </div>
                 <div class="notification-text">{{ notif.content }}</div>
                 <div class="notification-time">{{ formatTime(notif.create_time) }}</div>
               </div>
@@ -241,7 +224,6 @@
                 </button>
               </div>
               <div v-if="!notif.read" class="unread-dot"></div>
-              <div v-if="notif.priority === 'important'" class="important-indicator">重要</div>
             </div>
           </div>
           <div v-else class="notification-empty">
@@ -291,9 +273,8 @@
     </div>
     </transition>
 
-    <!-- 登录时的提醒弹窗 -->
     <transition name="modal-fade">
-      <div v-if="showReminderPopup && isLoginPopup" class="reminder-modal-overlay" @click="showReminderPopup = false">
+      <div v-if="showReminderPopup" class="reminder-modal-overlay" @click="showReminderPopup = false">
         <div class="reminder-modal" @click.stop>
           <div class="reminder-modal-header">
             <h3>⏰ 临期博主提醒</h3>
@@ -314,9 +295,6 @@
                 <div class="reminder-item-info">
                   <div class="reminder-item-name">{{ blogger.nickname }}</div>
                   <div class="reminder-item-days">剩余 {{ blogger.days_left }} 天</div>
-                  <div class="reminder-item-countdown" v-if="getCountdown(blogger.expire_date)">
-                    {{ getCountdown(blogger.expire_date) }}
-                  </div>
                 </div>
                 <div class="reminder-item-arrow">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -328,50 +306,68 @@
           </div>
           <div class="reminder-modal-footer">
             <button class="btn btn-secondary" @click="handleReminderClose">稍后处理</button>
-            <button class="btn btn-primary" @click="handleMarkAllRemindersRead; handleReminderClose">全部已读</button>
+            <button class="btn btn-primary" @click="handleMarkAllRemindersRead(); handleReminderClose()">全部已读</button>
           </div>
         </div>
       </div>
     </transition>
 
-    <!-- 顶栏下滑显示的提醒组件 -->
-    <transition name="slide-down">
-      <div v-if="showReminderDropdown" class="reminder-dropdown" :class="{ 'dark-mode': themeStore.isDark }">
-        <div class="reminder-dropdown-content">
-          <div class="reminder-dropdown-header">
-            <h4>⏰ 临期博主提醒</h4>
-            <button class="reminder-dropdown-close" @click="handleReminderClose">
+    <transition name="modal-fade">
+      <div v-if="showNotifDetail && currentNotif" class="notif-detail-overlay" @click.self="showNotifDetail = false">
+        <div class="notif-detail-modal" @click.stop>
+          <div class="notif-detail-header">
+            <div class="notif-detail-type-icon" :class="currentNotif.type">
+              <span v-if="currentNotif.type === 'mention'">@</span>
+              <span v-else-if="currentNotif.type === 'announcement'">📢</span>
+              <span v-else-if="currentNotif.type === 'system'">⚙️</span>
+              <span v-else-if="currentNotif.type === 'invalid_blogger'">⚠️</span>
+              <span v-else-if="currentNotif.type === 'countdown'">⏰</span>
+              <span v-else-if="currentNotif.type === 'team_change'">👥</span>
+              <span v-else-if="currentNotif.type === 'new_post'">📝</span>
+              <span v-else-if="currentNotif.type === 'post_reply'">💬</span>
+              <span v-else-if="currentNotif.type === 'post_like'">❤️</span>
+              <span v-else-if="currentNotif.type === 'team_message'">📨</span>
+              <span v-else-if="currentNotif.type === 'blogger_transfer'">🔄</span>
+              <span v-else-if="currentNotif.type === 'team_join'">🎉</span>
+              <span v-else-if="currentNotif.type === 'team_leave'">👋</span>
+              <span v-else-if="currentNotif.type === 'team_rejected'">✕</span>
+              <span v-else-if="currentNotif.type === 'team_approved'">✓</span>
+              <span v-else>📬</span>
+            </div>
+            <div class="notif-detail-title-area">
+              <h3>{{ currentNotif.title }}</h3>
+              <span v-if="currentNotif.priority === 'important'" class="important-badge-inline">重要</span>
+            </div>
+            <button class="notif-detail-close" @click="showNotifDetail = false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
             </button>
           </div>
-          <div class="reminder-dropdown-body">
-            <p v-if="reminderStore.expiringBloggers.length === 0">暂无临期博主提醒</p>
-            <div v-else class="reminder-list">
-              <div v-for="blogger in reminderStore.expiringBloggers" :key="blogger.id" class="reminder-item" @click="router.push(`/blogger/${blogger.id}`); handleReminderClose()">
-                <div class="reminder-item-avatar" :style="{ backgroundColor: blogger.color || '#3b82f6' }">
-                  {{ blogger.nickname.charAt(0) }}
-                </div>
-                <div class="reminder-item-info">
-                  <div class="reminder-item-name">{{ blogger.nickname }}</div>
-                  <div class="reminder-item-days">剩余 {{ blogger.days_left }} 天</div>
-                  <div class="reminder-item-countdown" v-if="getCountdown(blogger.expire_date)">
-                    {{ getCountdown(blogger.expire_date) }}
-                  </div>
-                </div>
-                <div class="reminder-item-arrow">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9,6 15,12 9,18"/>
-                  </svg>
-                </div>
+          <div class="notif-detail-body">
+            <div class="notif-detail-content">{{ currentNotif.content }}</div>
+            <div class="notif-detail-meta">
+              <div class="meta-item" v-if="currentNotif.from_user">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>{{ currentNotif.from_user }}</span>
+              </div>
+              <div class="meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                <span>{{ formatTime(currentNotif.create_time) }}</span>
+              </div>
+              <div class="meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>{{ notifTypeLabel(currentNotif.type) }}</span>
               </div>
             </div>
           </div>
-          <div class="reminder-dropdown-footer" v-if="reminderStore.expiringBloggers.length > 0">
-            <button class="btn btn-secondary" @click="handleReminderClose">稍后处理</button>
-            <button class="btn btn-primary" @click="handleMarkAllRemindersRead; handleReminderClose">全部已读</button>
+          <div class="notif-detail-footer">
+            <button class="btn btn-secondary" @click="showNotifDetail = false">关闭</button>
+            <button class="btn btn-primary" @click="goToNotifTarget">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9,6 15,12 9,18"/></svg>
+              查看详情
+            </button>
           </div>
         </div>
       </div>
@@ -393,21 +389,6 @@
             <line x1="8" y1="12" x2="16" y2="12"/>
           </svg>
           <span>录入博主</span>
-        </router-link>
-        <router-link to="/calendar" class="mobile-menu-item" :class="{ active: route.path === '/calendar' }" @click="showMenu = false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-          <span>日历</span>
-        </router-link>
-        <router-link to="/workflow" class="mobile-menu-item" :class="{ active: route.path === '/workflow' }" @click="showMenu = false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-          </svg>
-          <span>工作流</span>
         </router-link>
         <router-link to="/my" class="mobile-menu-item" :class="{ active: route.path === '/my' }" @click="showMenu = false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -433,6 +414,15 @@
           </svg>
           <span>团队</span>
         </router-link>
+        <router-link to="/users" class="mobile-menu-item" :class="{ active: route.path === '/users' }" @click="showMenu = false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>用户</span>
+        </router-link>
         <router-link v-if="userStore.role === 'admin'" to="/admin" class="mobile-menu-item" :class="{ active: route.path === '/admin' }" @click="showMenu = false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/>
@@ -443,8 +433,12 @@
       </div>
     </div>
 
-    <main class="main" id="main-content" role="main">
-      <router-view />
+    <main class="main">
+      <router-view v-slot="{ Component }">
+        <div class="page-wrapper" :key="$route.path">
+          <component :is="Component" />
+        </div>
+      </router-view>
     </main>
 
     <nav class="mobile-nav" v-if="!isTeamPage">
@@ -463,15 +457,6 @@
         </svg>
         <span>录入</span>
       </router-link>
-      <router-link to="/calendar" class="mobile-nav-item" :class="{ active: route.path === '/calendar' }">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <span>日历</span>
-      </router-link>
       <router-link to="/my" class="mobile-nav-item" :class="{ active: route.path === '/my' }">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -488,15 +473,14 @@
         </svg>
         <span>团队</span>
       </router-link>
-      <router-link to="/workflow" class="mobile-nav-item" :class="{ active: route.path === '/workflow' }">
+      <router-link v-if="userStore.role === 'admin'" to="/admin" class="mobile-nav-item" :class="{ active: route.path === '/admin' }">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/>
         </svg>
-        <span>工作流</span>
+        <span>管理</span>
       </router-link>
     </nav>
-
-    <FloatingActionBar :is-dark="themeStore?.isDark" />
   </div>
 </template>
 
@@ -508,11 +492,6 @@ import { useReminderStore } from '../stores/reminder'
 import { useToastStore } from '../stores/toast'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getNotificationsAPI, markNotificationReadAPI, markAllNotificationsReadAPI, deleteNotificationAPI, batchDeleteNotificationsAPI, getExpiringBloggersWithoutContactAPI, getAnnouncementsAPI, getConversationsAPI, getUnreadCountAPI } from '../api'
-import PWAStatusBar from '../components/PWAStatusBar.vue'
-import FloatingActionBar from '../components/FloatingActionBar.vue'
-import LangSwitcher from '../components/LangSwitcher.vue'
-import SkipToContent from '../components/SkipToContent.vue'
-import { usePWA } from '../composables/usePWA'
 
 const router = useRouter()
 const route = useRoute()
@@ -521,27 +500,11 @@ const themeStore = useThemeStore()
 const reminderStore = useReminderStore()
 const toastStore = useToastStore()
 
-const { isOnline, showUpdateBanner, isInstallable, updateSW, installPWA } = usePWA()
-const hideInstallPrompt = ref(false)
-
-const handleSWUpdate = async () => {
-  await updateSW()
-}
-
-const handleInstallPWA = async () => {
-  const installed = await installPWA()
-  if (installed) {
-    toastStore.success('Orange 已安装到桌面！')
-  }
-}
-
 const showReminderPopup = ref(false)
-const showReminderDropdown = ref(false)
-const isLoginPopup = ref(false)
-const countdownInterval = ref(null)
 const showMenu = ref(false)
 const showNotifications = ref(false)
-const showUserMenu = ref(false)
+const showNotifDetail = ref(false)
+const currentNotif = ref(null)
 const notifications = ref([])
 const announcements = ref([])
 const conversations = ref([])
@@ -610,30 +573,14 @@ const isTeamPage = computed(() => {
   return route.name === 'TeamHome' || route.path.startsWith('/team/')
 })
 
-const currentPageTitle = computed(() => {
-  const path = route.path
-  const titleMap = {
-    '/': '首页',
-    '/add': '录入博主',
-    '/my': '个人中心',
-    '/team': '团队中心',
-    '/admin': '系统管理',
-    '/statistics': '数据统计',
-    '/calendar': '提醒日历',
-    '/workflow': '工作流'
-  }
-  return titleMap[path] || titleMap[Object.keys(titleMap).find(k => path.startsWith(k) && k !== '/')] || 'Orange'
-})
-
-const loadExpiringBloggers = async (showLoginPopup = true) => {
+const loadExpiringBloggers = async () => {
   try {
     const res = await getExpiringBloggersWithoutContactAPI()
     if (res.code === 200) {
       reminderStore.setExpiringBloggers(res.data || [])
       
-      if (showLoginPopup && reminderStore.hasExpiringBloggers && !reminderStore.hasShownLoginPopup) {
+      if (reminderStore.hasExpiringBloggers && !reminderStore.hasShownLoginPopup) {
         showReminderPopup.value = true
-        isLoginPopup.value = true
       }
     }
   } catch (e) {
@@ -678,6 +625,14 @@ const handleNotificationClick = async (notif) => {
       console.error('标记已读失败', e)
     }
   }
+  currentNotif.value = notif
+  showNotifDetail.value = true
+}
+
+const goToNotifTarget = () => {
+  const notif = currentNotif.value
+  if (!notif) return
+  showNotifDetail.value = false
   showNotifications.value = false
   if (notif.type === 'invalid_blogger' && notif.blogger_id) {
     router.push(`/blogger/${notif.blogger_id}`)
@@ -695,6 +650,12 @@ const handleNotificationClick = async (notif) => {
     router.push(`/team?teamId=${notif.team_id}&tab=message`)
   } else if (notif.type === 'blogger_transfer' && notif.blogger_id) {
     router.push(`/blogger/${notif.blogger_id}`)
+  } else if (notif.type === 'team_join' || notif.type === 'team_leave') {
+    router.push('/team')
+  } else if (notif.type === 'team_rejected' || notif.type === 'team_approved') {
+    router.push('/team')
+  } else if (notif.redirect_url) {
+    window.location.href = notif.redirect_url
   } else if (notif.team_id) {
     router.push(`/team?teamId=${notif.team_id}`)
   }
@@ -778,15 +739,14 @@ const formatTime = (time) => {
   return `${Math.floor(diff / 86400000)}天前`
 }
 
+const notifTypeLabel = (type) => {
+  const map = { mention: '@提及', announcement: '公告', system: '系统', invalid_blogger: '博主异常', countdown: '临期提醒', team_change: '团队变更', new_post: '新帖子', post_reply: '评论回复', post_like: '点赞', team_message: '团队消息', blogger_transfer: '博主转移', team_join: '加入团队', team_leave: '离开团队', team_rejected: '申请被拒', team_approved: '申请通过' }
+  return map[type] || type
+}
+
 const handleClickOutside = (e) => {
   if (showNotifications.value && !e.target.closest('.notification-btn') && !e.target.closest('.notification-dropdown')) {
     showNotifications.value = false
-  }
-  if (showReminderDropdown.value && !e.target.closest('.reminder-btn') && !e.target.closest('.reminder-dropdown')) {
-    showReminderDropdown.value = false
-  }
-  if (showUserMenu.value && !e.target.closest('.user-info')) {
-    showUserMenu.value = false
   }
 }
 
@@ -813,46 +773,9 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 
-const handleReminderOpen = () => {
-  showReminderDropdown.value = true
-  loadExpiringBloggers(false)
-  
-  // 启动倒计时更新
-  if (countdownInterval.value) {
-    clearInterval(countdownInterval.value)
-  }
-  countdownInterval.value = setInterval(() => {
-    // 触发重新渲染
-    showReminderDropdown.value = showReminderDropdown.value
-  }, 1000)
-}
-
 const handleReminderClose = () => {
   showReminderPopup.value = false
-  showReminderDropdown.value = false
   reminderStore.markAsRead()
-  
-  // 清除倒计时更新
-  if (countdownInterval.value) {
-    clearInterval(countdownInterval.value)
-    countdownInterval.value = null
-  }
-}
-
-const getCountdown = (expireDate) => {
-  if (!expireDate) return ''
-  
-  const now = new Date()
-  const expire = new Date(expireDate)
-  const diff = expire - now
-  
-  if (diff <= 0) return '已过期'
-  
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-  
-  return `${hours}小时 ${minutes}分钟 ${seconds}秒`
 }
 
 const handleMarkAllRemindersRead = () => {
@@ -876,42 +799,32 @@ const openCommandPalette = () => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  isolation: isolate;
 }
 
 .header {
+  height: 64px;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: clamp(8px, 2vw, 16px) clamp(12px, 3vw, 20px);
+  padding: 0 24px;
   position: sticky;
   top: 0;
   z-index: 100;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  min-width: 0;
-  overflow: visible !important;
-  isolation: isolate;
 }
 
 .header-left {
-    display: flex;
-    align-items: center;
-    gap: clamp(6px, 1.5vw, 12px);
-    flex-shrink: 0;
-    min-width: 0;
-    width: auto;
-  }
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
 .menu-toggle {
   display: none;
-  width: 2.5em;
-  height: 2.5em;
-  min-width: 32px;
-  min-height: 32px;
-  max-width: 44px;
-  max-height: 44px;
+  width: 40px;
+  height: 40px;
   background: transparent;
   border: none;
   border-radius: 8px;
@@ -920,7 +833,6 @@ const openCommandPalette = () => {
   justify-content: center;
   color: var(--text-primary);
   transition: background 0.3s;
-  flex-shrink: 0;
 }
 
 .menu-toggle:hover {
@@ -928,17 +840,16 @@ const openCommandPalette = () => {
 }
 
 .menu-toggle svg {
-  width: 60%;
-  height: 60%;
+  width: 24px;
+  height: 24px;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: clamp(6px, 1vw, 10px);
+  gap: 10px;
   cursor: pointer;
   transition: opacity 0.3s;
-  flex-shrink: 0;
 }
 
 .logo:hover {
@@ -946,24 +857,19 @@ const openCommandPalette = () => {
 }
 
 .logo-icon {
-  width: 2.25em;
-  height: 2.25em;
-  min-width: 28px;
-  min-height: 28px;
-  max-width: 40px;
-  max-height: 40px;
+  width: 36px;
+  height: 36px;
   background: linear-gradient(135deg, var(--primary), var(--primary-light));
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  flex-shrink: 0;
 }
 
 .logo-icon svg {
-  width: 55%;
-  height: 55%;
+  width: 20px;
+  height: 20px;
 }
 
 .logo-text {
@@ -978,23 +884,6 @@ const openCommandPalette = () => {
 .nav {
   display: flex;
   gap: 8px;
-}
-
-.header-center {
-  display: none;
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-  min-width: 0;
-}
-
-.page-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-  white-space: nowrap;
-  letter-spacing: -0.01em;
 }
 
 .nav-item {
@@ -1044,8 +933,6 @@ const openCommandPalette = () => {
   display: flex;
   align-items: center;
   gap: 16px;
-  flex-shrink: 1;
-  min-width: 0;
 }
 
 .command-palette-trigger {
@@ -1112,6 +999,12 @@ const openCommandPalette = () => {
   height: 18px;
 }
 
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .user-avatar {
   width: 36px;
   height: 36px;
@@ -1171,126 +1064,6 @@ const openCommandPalette = () => {
   height: 18px;
 }
 
-.user-info {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: clamp(6px, 1vw, 12px);
-}
-
-.user-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  min-width: 200px;
-  background: var(--bg-card);
-  border: none;
-  border-radius: 16px;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.06),
-    0 10px 30px -5px rgba(0, 0, 0, 0.12),
-    0 0 0 1px rgba(0, 0, 0, 0.04);
-  padding: 8px;
-  z-index: 200;
-  animation: dropdown-appear 0.2s ease-out;
-}
-
-@keyframes dropdown-appear {
-  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-.user-dropdown-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 8px;
-}
-
-.user-dropdown-avatar {
-  width: 38px;
-  height: 38px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 700;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.user-dropdown-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.user-dropdown-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.user-dropdown-role {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.user-dropdown-divider {
-  height: 1px;
-  background: rgba(128, 128, 128, 0.1);
-  margin: 4px 0;
-}
-
-.user-dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-decoration: none;
-  border: none;
-  background: transparent;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.user-dropdown-item:hover {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
-}
-
-.user-dropdown-item svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-
-.user-dropdown-item:hover svg {
-  opacity: 1;
-}
-
-.user-dropdown-item.logout-item {
-  color: #ef4444;
-}
-
-.user-dropdown-item.logout-item:hover {
-  background: rgba(239, 68, 68, 0.08);
-  color: #dc2626;
-}
-
 .notification-btn {
   width: 36px;
   height: 36px;
@@ -1341,9 +1114,8 @@ const openCommandPalette = () => {
 .notification-dropdown {
   position: fixed;
   top: 64px;
-  right: 80px;
+  right: 16px;
   width: 360px;
-  max-width: calc(100vw - 32px);
   max-height: 480px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -1357,109 +1129,6 @@ const openCommandPalette = () => {
 
 .notification-dropdown.dark-mode {
   background: var(--bg-card);
-}
-
-.reminder-dropdown {
-  position: fixed;
-  top: 64px;
-  right: 140px;
-  width: 400px;
-  max-width: calc(100vw - 32px);
-  max-height: 480px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.reminder-dropdown.dark-mode {
-  background: var(--bg-card);
-}
-
-.reminder-dropdown-content {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.reminder-dropdown-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--bg-card);
-}
-
-.reminder-dropdown-header h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.reminder-dropdown-close {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.reminder-dropdown-close:hover {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
-.reminder-dropdown-body {
-  flex: 1;
-  padding: 16px;
-  overflow-y: auto;
-  max-height: 320px;
-}
-
-.reminder-dropdown-body p {
-  margin: 0;
-  color: var(--text-secondary);
-  text-align: center;
-  padding: 20px 0;
-}
-
-.reminder-dropdown-footer {
-  padding: 16px;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  gap: 8px;
-  background: var(--bg-card);
-}
-
-.reminder-dropdown-footer .btn {
-  flex: 1;
-  font-size: 13px;
-  padding: 8px 16px;
-}
-
-/* 下滑动画 */
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all 0.3s ease;
-  transform: translateY(0);
-  opacity: 1;
-}
-
-.slide-down-enter-from,
-.slide-down-leave-to {
-  transform: translateY(-10px);
-  opacity: 0;
 }
 
 .notification-header {
@@ -1726,6 +1395,10 @@ const openCommandPalette = () => {
   font-weight: 500;
   color: var(--text-primary);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .notification-text {
@@ -1792,6 +1465,210 @@ const openCommandPalette = () => {
   border-radius: 4px;
 }
 
+.important-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  color: #ef4444;
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.notif-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 20px;
+}
+
+.notif-detail-modal {
+  background: var(--bg-card);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25), 0 0 0 1px var(--border-color);
+  overflow: hidden;
+  animation: notifDetailSlideUp 0.3s ease;
+}
+
+@keyframes notifDetailSlideUp {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.notif-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 2px solid var(--border-color);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.04), rgba(59, 130, 246, 0.03));
+}
+
+.notif-detail-type-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.notif-detail-type-icon.mention { background: rgba(99, 102, 241, 0.15); }
+.notif-detail-type-icon.announcement { background: rgba(249, 115, 22, 0.15); }
+.notif-detail-type-icon.system { background: rgba(59, 130, 246, 0.15); }
+.notif-detail-type-icon.invalid_blogger { background: rgba(239, 68, 68, 0.12); }
+.notif-detail-type-icon.countdown { background: rgba(245, 158, 11, 0.15); }
+.notif-detail-type-icon.team_change { background: rgba(139, 92, 246, 0.12); }
+.notif-detail-type-icon.new_post { background: rgba(34, 197, 94, 0.12); }
+.notif-detail-type-icon.post_reply { background: rgba(59, 130, 246, 0.12); }
+.notif-detail-type-icon.post_like { background: rgba(236, 72, 153, 0.12); }
+.notif-detail-type-icon.team_message { background: rgba(14, 165, 233, 0.12); }
+.notif-detail-type-icon.blogger_transfer { background: rgba(168, 85, 247, 0.12); }
+.notif-detail-type-icon.team_join { background: rgba(34, 197, 94, 0.12); }
+.notif-detail-type-icon.team_leave { background: rgba(107, 114, 128, 0.12); }
+.notif-detail-type-icon.team_rejected { background: rgba(239, 68, 68, 0.12); }
+.notif-detail-type-icon.team_approved { background: rgba(34, 197, 94, 0.12); }
+
+.notif-detail-title-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.notif-detail-title-area h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.notif-detail-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.notif-detail-close:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.notif-detail-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.notif-detail-body {
+  padding: 20px;
+}
+
+.notif-detail-content {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.notif-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border-color);
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.meta-item svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.notif-detail-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 2px solid var(--border-color);
+  background: var(--bg-hover);
+}
+
+.notif-detail-footer .btn {
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+}
+
+.notif-detail-footer .btn-secondary {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.notif-detail-footer .btn-secondary:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.notif-detail-footer .btn-primary {
+  background: linear-gradient(135deg, var(--primary), #f7931e);
+  color: white;
+}
+
+.notif-detail-footer .btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+}
+
+.notif-detail-footer .btn-primary svg {
+  width: 14px;
+  height: 14px;
+}
+
 .notification-empty {
   padding: 40px 16px;
   text-align: center;
@@ -1836,7 +1713,7 @@ const openCommandPalette = () => {
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
 }
 
-.dark .mobile-nav {
+[data-theme="dark"] .mobile-nav {
   background-color: var(--bg-card) !important;
   background-image: none !important;
 }
@@ -1845,17 +1722,13 @@ const openCommandPalette = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 6px 4px;
+  gap: 2px;
+  padding: 6px 10px;
   color: var(--text-muted);
   text-decoration: none;
   transition: all 0.2s ease;
   border-radius: 8px;
-  min-width: 0;
-  flex: 1;
-  max-width: none;
-  -webkit-tap-highlight-color: transparent;
+  min-width: 56px;
 }
 
 .mobile-nav-item:active {
@@ -1864,19 +1737,14 @@ const openCommandPalette = () => {
 }
 
 .mobile-nav-item svg {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
 }
 
 .mobile-nav-item span {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 .mobile-nav-item.active {
@@ -1950,140 +1818,27 @@ const openCommandPalette = () => {
   color: var(--primary);
 }
 
-@media (max-width: 1200px) {
-  .header-right .user-detail .user-role {
-    display: none;
-  }
-
-  .command-palette-trigger .trigger-text {
-    display: none;
-  }
-
-  .command-palette-trigger kbd {
-    display: none;
-  }
-
-  .command-palette-trigger {
-    padding: 6px;
-    min-width: 32px;
-    justify-content: center;
-  }
-}
-
-@media (max-width: 1024px) {
-  .nav-item span {
-    display: none;
-  }
-
-  .nav-item {
-    padding: 8px;
-  }
-
-  .header-right {
-    gap: 6px;
-  }
-
-  .command-palette-trigger {
-    padding: 6px 10px;
-  }
-
-  .command-palette-trigger svg {
-    width: 18px;
-    height: 18px;
-  }
-}
-
 @media (max-width: 768px) {
   .layout .header {
-    padding: 0.5em 0.625em !important;
-    overflow: visible !important;
-    isolation: isolate !important;
-    font-size: 14px;
+    padding: 0 12px;
+    justify-content: flex-start;
+    box-sizing: border-box;
+    overflow: visible;
   }
 
   .header-left {
-    gap: 0.5em !important;
-    overflow: visible !important;
-    width: auto;
+    margin-right: auto;
     flex-shrink: 0;
   }
 
   .menu-toggle {
     display: flex;
-    width: 2em;
-    height: 2em;
-    min-width: 28px;
-    min-height: 28px;
-    max-width: 36px;
-    max-height: 36px;
-    flex-shrink: 0;
-  }
-
-  .menu-toggle svg {
-    width: 60%;
-    height: 60%;
+    width: 36px;
+    height: 36px;
   }
 
   .nav {
     display: none;
-  }
-
-  .header-center {
-    display: flex;
-  }
-
-  .page-title {
-    font-size: 16px;
-    font-weight: 600;
-  }
-
-  .header-right {
-    flex-shrink: 0;
-  }
-
-  .command-palette-trigger {
-    padding: 6px;
-    min-width: 32px;
-    justify-content: center;
-    background: transparent;
-    border: none;
-  }
-
-  .command-palette-trigger .trigger-text {
-    display: none;
-  }
-
-  .command-palette-trigger kbd {
-    display: none;
-  }
-
-  .command-palette-trigger svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .logo-text {
-    display: none;
-  }
-
-  .logo {
-    gap: 0.375em;
-  }
-
-  .logo-icon {
-    width: 1.875em;
-    height: 1.875em;
-    min-width: 26px;
-    min-height: 26px;
-    max-width: 34px;
-    max-height: 34px;
-    border-radius: 8px;
-    flex-shrink: 0;
-  }
-
-  .logo-icon svg {
-    width: 55%;
-    height: 55%;
   }
 
   .mobile-nav {
@@ -2111,70 +1866,46 @@ const openCommandPalette = () => {
     display: none;
   }
 
-  .command-palette-trigger {
-    padding: 0.375em;
-    min-width: 2em;
-    justify-content: center;
-  }
-
+  /* 优化右侧按钮间距 */
   .header-right {
-    gap: 0.375em;
-    flex-shrink: 1;
-    min-width: 0;
+    gap: 8px;
   }
 
   .notification-btn {
-    width: 2em;
-    height: 2em;
-    min-width: 28px;
-    min-height: 28px;
+    width: 32px;
+    height: 32px;
+    margin-right: 4px;
   }
 
   .notification-btn svg {
-    width: 55%;
-    height: 55%;
+    width: 16px;
+    height: 16px;
   }
 
   .theme-toggle {
-    width: 2em;
-    height: 2em;
-    min-width: 28px;
-    min-height: 28px;
+    width: 32px;
+    height: 32px;
   }
 
   .theme-toggle svg {
-    width: 55%;
-    height: 55%;
-  }
-
-  .reminder-btn {
-    width: 2em;
-    height: 2em;
-    min-width: 28px;
-    min-height: 28px;
-  }
-
-  .reminder-btn svg {
-    width: 55%;
-    height: 55%;
+    width: 16px;
+    height: 16px;
   }
 
   .user-avatar {
-    width: 1.875em;
-    height: 1.875em;
-    min-width: 26px;
-    min-height: 26px;
-    font-size: 0.8125em;
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
   }
 
   .logout-btn {
-    width: 2em;
-    height: 2em;
+    width: 32px;
+    height: 32px;
   }
 
   .logout-btn svg {
-    width: 55%;
-    height: 55%;
+    width: 16px;
+    height: 16px;
   }
 
   .notification-dropdown {
@@ -2182,106 +1913,86 @@ const openCommandPalette = () => {
     width: calc(100vw - 24px);
     max-width: 360px;
   }
-
-  .user-dropdown {
-    right: -8px;
-    min-width: 180px;
-    font-size: 13px;
-  }
-
-  .user-dropdown-header {
-    padding: 8px 6px;
-  }
-
-  .user-dropdown-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 14px;
-  }
-
-  .user-dropdown-item {
-    padding: 9px 10px;
-    font-size: 13px;
-  }
 }
 
 @media (max-width: 480px) {
+  .logo-text {
+    display: none;
+  }
+
+  /* ====== Header布局 - 菜单按钮绝对定位方案 ====== */
   .layout .header {
-    padding: 0.375em 0.5em !important;
-    overflow: visible !important;
-    isolation: isolate !important;
-    font-size: 13px;
+    height: 56px;
+    padding: 0 8px !important;
+    justify-content: flex-start !important;
+    box-sizing: border-box !important;
+    position: relative !important;
   }
 
-  .header-left {
-    gap: 0.375em !important;
-    overflow: visible !important;
-    width: auto;
-    flex-shrink: 0;
-  }
-
+  /* 汉堡菜单 - 绝对定位到左上角，不占flex空间 */
   .menu-toggle {
-    width: 1.75em;
-    height: 1.75em;
-    min-width: 24px;
-    min-height: 24px;
-    max-width: 32px;
-    max-height: 32px;
-    flex-shrink: 0;
+    position: absolute !important;
+    left: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 32px !important;
+    height: 32px !important;
+    z-index: 200 !important;
+    flex-shrink: 0 !important;
   }
 
-  .menu-toggle svg {
-    width: 60%;
-    height: 60%;
+  /* logo左移给菜单按钮腾出空间 */
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 40px !important; /* = menu-toggle宽度(32) + left(8) */
+    margin-right: auto !important;
+    flex-shrink: 0 !important;
+    min-width: 0;
   }
 
   .logo {
-    gap: 0.25em;
+    display: flex !important;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0 !important;
   }
 
   .logo-icon {
-    width: 1.625em;
-    height: 1.625em;
-    min-width: 22px;
-    min-height: 22px;
-    max-width: 30px;
-    max-height: 30px;
-    border-radius: 7px;
-    flex-shrink: 0;
-  }
-
-  .logo-icon svg {
-    width: 55%;
-    height: 55%;
+    width: 28px !important;
+    height: 28px !important;
+    flex-shrink: 0 !important;
+    border-radius: 8px;
   }
 
   .header-right {
-    gap: 0.25em;
+    display: flex !important;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 1;
+    min-width: 0;
   }
 
-  .page-title {
-    font-size: 15px;
-  }
+  .menu-toggle svg { width: 18px; height: 18px; }
+  .logo-icon svg { width: 16px; height: 16px; }
 
-  .command-palette-trigger,
-  .theme-toggle,
-  .notification-btn,
-  .reminder-btn {
-    width: 1.875em;
-    height: 1.875em;
-    min-width: 24px;
-    min-height: 24px;
-    max-width: 30px;
-    max-height: 30px;
-  }
+  /* 隐藏所有非核心按钮 */
+  .command-palette-trigger { display: none !important; }
+  .mark-reminders-read-btn { display: none !important; }
+  .reminder-btn { display: none !important; }
 
-  .user-avatar {
-    width: 1.75em;
-    height: 1.75em;
-    min-width: 22px;
-    min-height: 22px;
-    font-size: 0.85em;
-  }
+  .theme-toggle { width: 30px !important; height: 30px !important; flex-shrink: 0 !important; }
+  .theme-toggle svg { width: 15px; height: 15px; }
+
+  .notification-btn { width: 30px !important; height: 30px !important; flex-shrink: 0 !important; margin-right: 0 !important; }
+  .notification-btn svg { width: 15px; height: 15px; }
+
+  .user-info { display: flex; align-items: center; flex-shrink: 0 !important; }
+  .user-avatar { width: 28px !important; height: 28px !important; font-size: 11px !important; flex-shrink: 0 !important; }
+  .user-detail { display: none !important; }
+  .logout-btn { width: 30px !important; height: 30px !important; flex-shrink: 0 !important; }
+  .logout-btn svg { width: 15px; height: 15px; }
 
   .notification-dropdown {
     position: fixed;
@@ -2291,34 +2002,304 @@ const openCommandPalette = () => {
     width: 100%;
     max-height: calc(100vh - 56px);
     border-radius: 0;
-    border-left: none;
-    border-right: none;
+    z-index: 9999;
   }
 
-  .user-dropdown {
-    position: fixed;
-    top: auto;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-    left: 8px;
-    right: 8px;
-    min-width: auto;
-    width: calc(100% - 16px);
-    border: none;
-    border-radius: 20px;
-    box-shadow:
-      0 -4px 20px rgba(0, 0, 0, 0.1),
-      0 0 0 1px rgba(128, 128, 128, 0.08);
-    animation: dropdown-appear-mobile 0.25s ease-out;
+  /* ====== 提醒弹窗移动端适配 ====== */
+  .reminder-modal-overlay {
+    z-index: 10000;
+    align-items: flex-end;
+    padding: 0 !important;
   }
 
-  @keyframes dropdown-appear-mobile {
-    from { opacity: 0; transform: translateY(20px) scale(0.95); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+  .reminder-modal {
+    width: 100% !important;
+    max-width: none !important;
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 88vh;
+    margin: 0 auto;
+    z-index: 10001;
+    animation: reminderSlideUp 0.35s ease;
   }
 
-  .user-dropdown-item {
+  @keyframes reminderSlideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .reminder-modal-header {
+    padding: 18px 20px 14px;
+    position: relative;
+  }
+
+  .reminder-modal-header h3 {
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .reminder-modal-close {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    background: #f3f4f6;
+    border-radius: 8px;
+  }
+
+  .reminder-modal-body {
+    padding: 16px 20px;
+    max-height: 50vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .reminder-modal-body p {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .reminder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .reminder-item {
     padding: 12px 14px;
+    gap: 10px;
+    border-radius: 12px;
+    transition: all 0.2s;
+  }
+
+  .reminder-item:hover {
+    transform: translateY(-1px) !important;
+  }
+
+  .reminder-item-avatar {
+    width: 40px;
+    height: 40px;
     font-size: 14px;
+    flex-shrink: 0;
+    border-radius: 10px;
+  }
+
+  .reminder-item-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .reminder-item-name {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .reminder-item-days {
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  .reminder-item-arrow {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: #9ca3af;
+  }
+
+  .reminder-item-arrow svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .reminder-modal-footer {
+    padding: 14px 20px;
+    gap: 10px;
+    flex-direction: row;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-card);
+  }
+
+  .reminder-modal-footer .btn {
+    flex: 1;
+    min-width: 0;
+    padding: 13px 16px !important;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 10px !important;
+    box-sizing: border-box;
+    cursor: pointer;
+    pointer-events: auto !important;
+    z-index: 10002;
+    position: relative;
+    transition: all 0.2s;
+  }
+
+  .reminder-modal-footer .btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #e5e7eb !important;
+  }
+
+  .reminder-modal-footer .btn-secondary:hover,
+  .reminder-modal-footer .btn-secondary:active {
+    background: #e5e7eb;
+  }
+
+  .reminder-modal-footer .btn-primary {
+    background: linear-gradient(135deg, var(--primary), #f7931e) !important;
+    box-shadow: 0 3px 10px rgba(255, 107, 53, 0.25) !important;
+  }
+
+  .reminder-modal-footer .btn-primary:hover,
+  .reminder-modal-footer .btn-primary:active {
+    transform: scale(1.02);
+    box-shadow: 0 5px 14px rgba(255, 107, 53, 0.35) !important;
+  }
+}
+
+/* 小屏设备适配 (200%-300%浏览器缩放) */
+@media (max-width: 640px) and (min-width: 381px) {
+  .layout .header {
+    height: 52px;
+    padding: 0 8px !important;
+    gap: 4px !important;
+  }
+
+  .menu-toggle {
+    width: 32px !important;
+    height: 32px !important;
+    left: 6px !important;
+  }
+
+  .menu-toggle svg { width: 18px; height: 18px; }
+
+  .header-left {
+    margin-left: 40px !important;
+    gap: 4px !important;
+  }
+
+  .logo-icon {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .logo-icon svg { width: 16px; height: 16px; }
+
+  .logo-text {
+    font-size: 15px !important;
+  }
+
+  .header-right {
+    gap: 4px !important;
+  }
+
+  .theme-toggle,
+  .notification-btn,
+  .logout-btn {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .theme-toggle svg,
+  .notification-btn svg,
+  .logout-btn svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .user-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* 极小屏幕适配 (300%-400%浏览器缩放) - 激进优化方案 */
+@media (max-width: 380px) {
+  .layout .header {
+    height: 40px;
+    padding: 0 2px !important;
+    min-width: 0;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+  }
+
+  .menu-toggle {
+    width: 24px !important;
+    height: 24px !important;
+    left: 2px !important;
+    flex-shrink: 0;
+    position: absolute;
+    z-index: 100;
+  }
+
+  .menu-toggle svg { 
+    width: 12px; 
+    height: 12px; 
+  }
+
+  /* 隐藏Logo文字，只保留图标 */
+  .header-left {
+    margin-left: 28px !important;
+    gap: 0px !important;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+  }
+
+  .logo-icon {
+    width: 20px !important;
+    height: 20px !important;
+    flex-shrink: 0;
+  }
+
+  .logo-icon svg { 
+    width: 10px; 
+    height: 10px; 
+  }
+
+  .logo-text {
+    display: none !important;
+  }
+
+  .header-right {
+    gap: 1px !important;
+    flex-shrink: 0;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+  }
+
+  .theme-toggle,
+  .notification-btn,
+  .logout-btn,
+  .reminder-btn {
+    width: 22px !important;
+    height: 22px !important;
+    padding: 3px !important;
+    min-width: 22px;
+  }
+
+  .theme-toggle svg,
+  .notification-btn svg,
+  .logout-btn svg {
+    width: 11px !important;
+    height: 11px !important;
+  }
+
+  .user-avatar {
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 8px !important;
+    min-width: 20px;
   }
 }
 
@@ -2512,25 +2493,6 @@ const openCommandPalette = () => {
   font-weight: 500;
 }
 
-.reminder-item-countdown {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  margin-top: 3px;
-  font-family: monospace;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.reminder-item-countdown::before {
-  content: '⏰';
-  font-size: 10px;
-}
-
-.reminder-item:hover .reminder-item-countdown {
-  color: rgba(255,255,255,0.8);
-}
-
 .reminder-item:hover .reminder-item-days {
   color: white;
 }
@@ -2575,4 +2537,10 @@ const openCommandPalette = () => {
 .modal-fade-leave-active .reminder-modal {
   transition: transform 0.3s ease;
 }
+
+/* Page transition animation */
+.page-enter-active { transition: opacity 0.25s ease, transform 0.25s ease; }
+.page-leave-active  { transition: opacity 0.2s ease, transform 0.2s ease; }
+.page-enter-from   { opacity: 0; transform: translateY(12px); }
+.page-leave-to      { opacity: 0; transform: translateY(-8px); }
 </style>

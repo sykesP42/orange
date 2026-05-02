@@ -75,10 +75,10 @@ const props = defineProps({
 const emit = defineEmits(['goToDetail', 'updateStatus'])
 
 const columns = [
-  { status: '初次联系', color: '#3b82f6', cssClass: 'col-first' },
-  { status: '洽谈中', color: '#f97316', cssClass: 'col-negotiating' },
-  { status: '已合作', color: '#22c55e', cssClass: 'col-cooperated' },
-  { status: '已拒绝', color: '#ef4444', cssClass: 'col-rejected' },
+  { status: '初次联系', color: 'var(--info)', cssClass: 'col-first' },
+  { status: '洽谈中', color: 'var(--primary)', cssClass: 'col-negotiating' },
+  { status: '已合作', color: 'var(--success)', cssClass: 'col-cooperated' },
+  { status: '已拒绝', color: 'var(--danger)', cssClass: 'col-rejected' },
   { status: '暂停合作', color: '#6b7280', cssClass: 'col-paused' }
 ]
 
@@ -124,13 +124,17 @@ const onDrop = (e, newStatus) => {
 
 const showMoveMenu = (e, blogger) => {
   const currentStatus = blogger.status || '初次联系'
-  const otherStatuses = columns.value.filter(c => c.status !== currentStatus)
+  const otherStatuses = columns.filter(c => c.status !== currentStatus)
   const menu = document.createElement('div')
   menu.className = 'kanban-move-menu'
   otherStatuses.forEach(col => {
     const btn = document.createElement('button')
     btn.className = 'kanban-move-btn'
-    btn.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col.color};margin-right:8px"></span>${col.status}`
+    const dot = document.createElement('span')
+    dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px'
+    dot.style.background = col.color
+    btn.appendChild(dot)
+    btn.appendChild(document.createTextNode(col.status))
     btn.addEventListener('click', () => {
       emit('updateStatus', blogger.id, col.status, currentStatus)
       menu.remove()
@@ -273,7 +277,7 @@ const showMoveMenu = (e, blogger) => {
   align-items: center;
   justify-content: center;
   background: var(--primary, #f97316);
-  color: white;
+  color: var(--color-on-brand);
   font-weight: 600;
   font-size: 14px;
 }

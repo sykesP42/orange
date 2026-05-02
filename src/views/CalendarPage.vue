@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="calendar-page">
     <div class="page-header">
       <button class="back-btn" @click="router.push('/')">
@@ -24,46 +24,68 @@ const router = useRouter()
 .calendar-page {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 16px;
 }
 
 .page-header {
   display: flex;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 24px;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
 .back-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  gap: 6px;
+  padding: 8px 12px;
   background: white;
-  border: 1px solid var(--border-color);
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: #374151;
   cursor: pointer;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .back-btn:hover {
-  background: var(--bg-card-hover);
+  background: #f9fafb;
   border-color: var(--primary);
   color: var(--primary);
 }
 
 .back-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 h1 {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #1f2937;
   margin: 0;
+}
+
+@media (max-width: 480px) {
+  .calendar-page {
+    padding: 12px;
+  }
+
+  .page-header {
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .back-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  h1 {
+    font-size: 15px;
+  }
 }
 </style>

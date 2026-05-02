@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="template-selector">
     <div class="selector-trigger">
       <button class="trigger-btn" @click="showPicker = !showPicker" :disabled="disabled">
@@ -127,17 +127,17 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
-  color: var(--text-secondary);
+  color: #374151;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .trigger-btn:hover:not(:disabled) {
-  background: var(--border-color);
+  background: #e5e7eb;
   border-color: var(--primary);
   color: var(--primary);
 }
@@ -241,7 +241,7 @@ onMounted(() => {
 
 .template-item {
   padding: 16px;
-  background: var(--bg-card-hover);
+  background: #f9fafb;
   border: 2px solid #e5e7eb;
   border-radius: 12px;
   cursor: pointer;
@@ -249,7 +249,7 @@ onMounted(() => {
 }
 
 .template-item:hover {
-  background: var(--bg-hover);
+  background: #f3f4f6;
   border-color: #d1d5db;
   transform: translateY(-2px);
 }
@@ -269,7 +269,7 @@ onMounted(() => {
 .template-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #1f2937;
 }
 
 .template-item.selected .template-name {
@@ -280,22 +280,22 @@ onMounted(() => {
   font-size: 10px;
   padding: 2px 8px;
   background: #fef3c7;
-  color: var(--warning);
+  color: #92400e;
   border-radius: 4px;
 }
 
 .category-badge {
   font-size: 10px;
   padding: 2px 8px;
-  background: var(--border-color);
-  color: var(--text-tertiary);
+  background: #e5e7eb;
+  color: #6b7280;
   border-radius: 4px;
   margin-left: auto;
 }
 
 .template-preview {
   font-size: 13px;
-  color: var(--text-tertiary);
+  color: #6b7280;
   line-height: 1.5;
   white-space: pre-wrap;
   overflow: hidden;

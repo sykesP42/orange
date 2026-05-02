@@ -28,7 +28,7 @@ const handleClick = (e) => {
   gap: 4px;
   padding: 10px 18px;
   background: #f97316;
-  color: white;
+  color: var(--bg-card);
   font-weight: 600;
   font-size: 0.9rem;
   border-radius: 0 0 8px 8px;

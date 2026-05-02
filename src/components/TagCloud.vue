@@ -270,7 +270,7 @@ function toggleViewMode() {
 
 .cloud-tag.active {
   background: var(--primary);
-  color: white !important;
+  color: var(--color-on-brand) !important;
   box-shadow: 0 4px 16px rgba(249, 115, 22, 0.3);
   opacity: 1 !important;
 }
@@ -282,7 +282,7 @@ function toggleViewMode() {
   right: -2px;
   width: 8px;
   height: 8px;
-  background: #22c55e;
+  background: var(--success);
   border-radius: 50%;
   border: 2px solid var(--bg-card);
 }
@@ -304,7 +304,7 @@ function toggleViewMode() {
   top: -6px;
   right: -6px;
   background: linear-gradient(135deg, #22c55e, #16a34a);
-  color: white;
+  color: var(--color-on-brand);
   font-size: 9px;
   font-weight: 700;
   padding: 1px 4px;
@@ -397,7 +397,7 @@ function toggleViewMode() {
   font-size: 9px;
   padding: 1px 5px;
   background: linear-gradient(135deg, #22c55e, #16a34a);
-  color: white;
+  color: var(--color-on-brand);
   border-radius: 4px;
   font-weight: 600;
 }

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="detail-page" v-if="blogger">
     <div class="page-header">
       <div class="header-left">
@@ -643,10 +643,32 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showRejectReasonDialog" class="dialog-overlay" style="background:rgba(0,0,0,0.6)!important;backdrop-filter:blur(4px);z-index:1100;" @click.self="showRejectReasonDialog = false">
+      <div class="dialog-card" style="max-width:460px;">
+        <div class="dialog-header">
+          <h3>拒绝原因</h3>
+          <button class="close-btn" @click="showRejectReasonDialog = false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <p style="margin:0 0 12px;color:#6b7280;font-size:14px;">将博主标记为"已拒绝"后，将自动录入失效库。请填写拒绝原因：</p>
+          <textarea v-model="rejectReason" placeholder="请输入拒绝原因（必填）" rows="4" style="width:100%;padding:12px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-secondary" @click="showRejectReasonDialog = false">取消</button>
+          <button class="btn-primary" @click="confirmReject" :disabled="!rejectReason.trim()" style="background:linear-gradient(135deg,#ef4444,#dc2626);">确认拒绝</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="detail-page" v-else>
-    <SkeletonLoader variant="detail" :is-dark="isDark" />
+    <div class="loading">加载中...</div>
   </div>
 
   <AvatarCropper
@@ -691,13 +713,12 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getBloggerDetail, followupAddAPI, followupListAPI, followupDeleteAPI, followupUpdateAPI, bloggerUpdateAPI, bloggerDeleteAPI, categoryListAPI, requestBloggerTransfer, cooperationListAPI, cooperationAddAPI, cooperationUpdateAPI, cooperationDeleteAPI, getBloggerStatusList, getTeamsAPI, getBloggerLogsAPI, getPublicUsersAPI, getTagsAPI, getBloggerTagsAPI, setBloggerTagsAPI, getSimilarBloggersAPI } from '../api'
+import { getBloggerDetail, followupAddAPI, followupListAPI, followupDeleteAPI, followupUpdateAPI, bloggerUpdateAPI, bloggerDeleteAPI, categoryListAPI, requestBloggerTransfer, cooperationListAPI, cooperationAddAPI, cooperationUpdateAPI, cooperationDeleteAPI, getBloggerStatusList, getTeamsAPI, getBloggerLogsAPI, getPublicUsersAPI, getTagsAPI, getBloggerTagsAPI, setBloggerTagsAPI, getSimilarBloggersAPI, setInvalidBloggerAPI } from '../api'
 import { useUserStore } from '../stores/user'
 import { useNotification } from '../stores/notification'
 import { useConfirm } from '../utils/confirm'
 import AvatarCropper from '../components/AvatarCropper.vue'
 import TemplateSelector from '../components/TemplateSelector.vue'
-import SkeletonLoader from '../components/SkeletonLoader.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -718,6 +739,8 @@ const transferForm = ref({
 const teamMembers = ref([])
 const followupContent = ref('')
 const followupType = ref('跟进')
+const showRejectReasonDialog = ref(false)
+const rejectReason = ref('')
 const showEditDialog = ref(false)
 const editForm = ref({})
 const tagInput = ref('')
@@ -950,14 +973,7 @@ const canEdit = computed(() => {
 })
 
 const canDelete = computed(() => {
-  return userStore.role === 'admin' || blogger.value?.owner_username === userStore.username
-})
-
-const isDark = computed(() => {
-  if (typeof document !== 'undefined') {
-    return document.documentElement.classList.contains('dark')
-  }
-  return false
+  return userStore.role === 'admin' || blogger.value?.user_name === userStore.username
 })
 
 const bloggerTeamName = computed(() => {
@@ -1204,8 +1220,8 @@ const handleTransfer = async () => {
 
   try {
     const res = await requestBloggerTransfer({
-      bloggerId: blogger.value.id,
-      toUserId: transferForm.value.toUserId,
+      id: blogger.value.id,
+      to_user_id: transferForm.value.toUserId,
       reason: transferForm.value.reason
     })
     if (res.code === 200) {
@@ -1267,6 +1283,30 @@ const addTag = () => {
 }
 
 const saveEdit = async () => {
+  if (editForm.value.status === '已拒绝' && blogger.value.status !== '已拒绝') {
+    showRejectReasonDialog.value = true
+    return
+  }
+  await doSaveEdit()
+}
+
+const confirmReject = async () => {
+  if (!rejectReason.value.trim()) {
+    notification.warning('请填写拒绝原因')
+    return
+  }
+  showRejectReasonDialog.value = false
+  editForm.value.status_remark = rejectReason.value
+  await doSaveEdit()
+  try {
+    await setInvalidBloggerAPI(blogger.value.id, { reason: rejectReason.value })
+  } catch (e) {
+    console.error('录入失效库失败', e)
+  }
+  rejectReason.value = ''
+}
+
+const doSaveEdit = async () => {
   try {
     const res = await bloggerUpdateAPI(blogger.value.id, editForm.value)
     
@@ -1592,7 +1632,7 @@ const loadStatusList = async () => {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--info);
+  background: #3b82f6;
   border: none;
   border-radius: 10px;
   color: white;
@@ -1615,7 +1655,7 @@ const loadStatusList = async () => {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--danger);
+  background: #ef4444;
   border: none;
   border-radius: 10px;
   color: white;
@@ -1625,7 +1665,7 @@ const loadStatusList = async () => {
 }
 
 .delete-btn:hover {
-  background: var(--danger);
+  background: #dc2626;
 }
 
 .delete-btn svg {
@@ -2543,7 +2583,7 @@ html.dark .dialog-overlay {
 }
 
 .dialog {
-  background: var(--bg-card);
+  background: #ffffff;
   border-radius: 16px;
   width: 90%;
   max-width: 500px;
@@ -2556,14 +2596,14 @@ html.dark .dialog-overlay {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 2px solid var(--border-color);
-  background: var(--bg-card-hover);
+  border-bottom: 2px solid #e5e7eb;
+  background: #f9fafb;
 }
 
 .dialog-header h3 {
   font-size: 18px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #1f2937;
   margin: 0;
 }
 
@@ -2573,17 +2613,17 @@ html.dark .dialog-overlay {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  color: var(--text-tertiary);
+  color: #6b7280;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .dialog-header .close-btn:hover {
-  background: var(--danger);
-  border-color: var(--danger);
+  background: #ef4444;
+  border-color: #ef4444;
   color: white;
 }
 
@@ -2594,7 +2634,7 @@ html.dark .dialog-overlay {
 
 .dialog-body {
   padding: 24px;
-  background: var(--bg-card);
+  background: #ffffff;
 }
 
 .dialog-body .form-group {
@@ -2610,17 +2650,17 @@ html.dark .dialog-overlay {
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #374151;
 }
 
 .dialog-body .form-select,
 .dialog-body .form-textarea {
   width: 100%;
   padding: 12px;
-  background: var(--bg-card-hover);
+  background: #f9fafb;
   border: 2px solid #e5e7eb;
   border-radius: 10px;
-  color: var(--text-primary);
+  color: #1f2937;
   font-size: 14px;
   font-family: inherit;
   box-sizing: border-box;
@@ -2631,7 +2671,7 @@ html.dark .dialog-overlay {
   outline: none;
   border-color: #ff6b35;
   box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
-  background: var(--bg-card);
+  background: #ffffff;
 }
 
 .dialog-body .form-textarea {
@@ -2649,17 +2689,17 @@ html.dark .dialog-overlay {
 
 .dialog-actions .btn-secondary {
   padding: 10px 20px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  color: var(--text-secondary);
+  color: #374151;
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .dialog-actions .btn-secondary:hover {
-  background: var(--border-color);
+  background: #e5e7eb;
   border-color: #d1d5db;
 }
 
@@ -3146,7 +3186,7 @@ html.dark .dialog-overlay {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .dialog-header h2 {
@@ -3170,7 +3210,7 @@ html.dark .dialog-overlay {
 }
 
 .close-btn:hover {
-  background: var(--bg-hover);
+  background: #f3f4f6;
   color: #1a1a1a;
 }
 
@@ -3200,7 +3240,7 @@ html.dark .dialog-overlay {
 .form-label {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: #374151;
 }
 
 .form-input,
@@ -3386,23 +3426,23 @@ html.dark .dialog-overlay {
   gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid #e5e7eb;
-  background: var(--bg-card-hover);
+  background: #f9fafb;
 }
 
 .btn-secondary {
   padding: 10px 24px;
-  background: var(--bg-hover);
+  background: #f3f4f6;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: #374151;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-secondary:hover {
-  background: var(--border-color);
+  background: #e5e7eb;
   border-color: #9ca3af;
 }
 
@@ -3828,8 +3868,8 @@ html.dark .dialog-overlay {
 .tag-system {
   font-size: 10px;
   padding: 2px 6px;
-  background: var(--border-color);
-  color: var(--text-tertiary);
+  background: #e5e7eb;
+  color: #6b7280;
   border-radius: 4px;
 }
 
@@ -3843,18 +3883,18 @@ html.dark .dialog-overlay {
 
 .tag-dialog-footer .cancel-btn {
   padding: 10px 20px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-tertiary);
+  color: #6b7280;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .tag-dialog-footer .cancel-btn:hover {
-  background: var(--border-color);
+  background: #e5e7eb;
 }
 
 .tag-dialog-footer .save-btn {
@@ -3879,12 +3919,12 @@ html.dark .dialog-overlay {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-tertiary);
+  color: #6b7280;
   cursor: pointer;
   transition: all 0.2s;
   margin-top: 12px;
