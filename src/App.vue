@@ -13,18 +13,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from './stores/theme'
 import { useToastStore } from './stores/toast'
-import MessageNotify from './components/MessageNotify.vue'
-import ConfirmDialog from './components/ConfirmDialog.vue'
-import PwaInstall from './components/PwaInstall.vue'
-import Toast from './components/Toast.vue'
-import CommandPalette from './components/CommandPalette.vue'
-import QuickNote from './components/QuickNote.vue'
-import ShortcutHelp from './components/ShortcutHelp.vue'
-import OnlineStatus from './components/OnlineStatus.vue'
+
+const MessageNotify = defineAsyncComponent(() => import('./components/MessageNotify.vue'))
+const ConfirmDialog = defineAsyncComponent(() => import('./components/ConfirmDialog.vue'))
+const PwaInstall = defineAsyncComponent(() => import('./components/PwaInstall.vue'))
+const Toast = defineAsyncComponent(() => import('./components/Toast.vue'))
+const CommandPalette = defineAsyncComponent(() => import('./components/CommandPalette.vue'))
+const QuickNote = defineAsyncComponent(() => import('./components/QuickNote.vue'))
+const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHelp.vue'))
+const OnlineStatus = defineAsyncComponent(() => import('./components/OnlineStatus.vue'))
 import { useKeyboardShortcut } from './composables/useKeyboardShortcut'
 
 const toastStore = useToastStore()
@@ -54,7 +55,7 @@ const handleGSequence = (key) => {
       m: '/my',
       b: '/my-bloggers',
       t: '/team',
-      f: '/forums',
+      f: '/users',
       c: '/chat',
       s: '/statistics',
       d: '/admin'

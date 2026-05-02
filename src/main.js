@@ -45,7 +45,6 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      console.log('SW registered:', registration.scope)
 
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing
@@ -56,7 +55,7 @@ if ('serviceWorker' in navigator) {
         })
       })
     } catch (err) {
-      console.log('SW registration failed:', err)
+      // SW registration failed silently
     }
   })
 }
