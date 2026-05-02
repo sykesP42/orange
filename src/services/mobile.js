@@ -31,7 +31,6 @@ export class MobileService {
     await LocalNotifications.requestPermissions()
     
     const network = await Network.getStatus()
-    console.log('Network status:', network.connected)
     
     Network.addListener('networkStatusChange', (status) => {
       window.dispatchEvent(new CustomEvent('network-change', { detail: status }))

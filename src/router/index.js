@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getActivePinia } from 'pinia'
 import { useUserStore } from '../stores/user'
 
 const routes = [
@@ -7,6 +8,12 @@ const routes = [
     name: 'Login',
     component: () => import('../views/Login.vue'),
     meta: { title: '登录' }
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('../views/Login.vue'),
+    meta: { title: '注册' }
   },
   {
     path: '/',
@@ -67,16 +74,22 @@ const routes = [
         meta: { title: '小组主页' }
       },
       {
-        path: 'forums',
-        name: 'Forums',
-        component: () => import('../views/Forums.vue'),
-        meta: { title: '公共论坛' }
+        path: 'team/:teamId/post/:postId',
+        name: 'SharedPost',
+        component: () => import('../views/TeamHome.vue'),
+        meta: { title: '帖子详情' }
+      },
+      {
+        path: 'users',
+        name: 'Users',
+        component: () => import('../views/PublicUsers.vue'),
+        meta: { title: '用户' }
       },
       {
         path: 'log',
         name: 'Log',
         component: () => import('../views/Log.vue'),
-        meta: { title: '操作日志' }
+        meta: { title: '操作日志', requiresAdmin: true }
       },
       {
         path: 'analytics',
@@ -109,12 +122,6 @@ const routes = [
         meta: { title: '失效博主库' }
       },
       {
-        path: 'public-users',
-        name: 'PublicUsers',
-        component: () => import('../views/PublicUsers.vue'),
-        meta: { title: '公开用户' }
-      },
-      {
         path: 'chat',
         name: 'Chat',
         component: () => import('../views/Chat.vue'),
@@ -141,7 +148,11 @@ const router = createRouter({
   }
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
+  if (!getActivePinia()) {
+    next()
+    return
+  }
   const userStore = useUserStore()
   const token = localStorage.getItem('token')
 
@@ -150,13 +161,40 @@ router.beforeEach((to, from, next) => {
     userStore.username = localStorage.getItem('username') || ''
     userStore.realName = localStorage.getItem('realName') || ''
     userStore.role = localStorage.getItem('role') || 'user'
-    userStore.team_id = localStorage.getItem('team_id') || null
+    userStore.id = localStorage.getItem('id') ? parseInt(localStorage.getItem('id')) : null
+    userStore.team_id = localStorage.getItem('team_id') ? parseInt(localStorage.getItem('team_id')) : null
+    userStore.team_name = localStorage.getItem('team_name') || null
+    userStore.team_color = localStorage.getItem('team_color') || null
+    userStore.isLoggedIn = true
+    userStore.isAdmin = localStorage.getItem('role') === 'admin'
   }
 
   if (to.path !== '/login' && !token) {
     next('/login')
-  } else if (to.meta.requiresAdmin && userStore.role !== 'admin') {
-    next('/')
+  } else if (to.meta.requiresAdmin) {
+    if (userStore.role !== 'admin') {
+      next('/')
+    } else {
+      if (!userStore._roleVerified) {
+        try {
+          const api = (await import('../api')).default
+          const res = await api.get('/user/profile')
+          if (res.code === 200 && res.data?.role === 'admin') {
+            userStore._roleVerified = true
+            next()
+          } else {
+            userStore.role = res.data?.role || 'user'
+            userStore.isAdmin = false
+            localStorage.setItem('role', userStore.role)
+            next('/')
+          }
+        } catch {
+          next('/')
+        }
+      } else {
+        next()
+      }
+    }
   } else {
     next()
   }

@@ -1,10 +1,12 @@
+import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-const notifications = ref([])
 let notificationId = 0
 const MAX_NOTIFICATIONS = 50
 
-export const useNotification = () => {
+export const useNotification = defineStore('notification', () => {
+  const notifications = ref([])
+
   const addNotification = ({ message, type = 'info', duration = 3000 }) => {
     if (notifications.value.length >= MAX_NOTIFICATIONS) {
       notifications.value.shift()
@@ -48,4 +50,4 @@ export const useNotification = () => {
     warning,
     info
   }
-}
+})
