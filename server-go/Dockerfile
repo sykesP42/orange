@@ -1,31 +1,18 @@
-FROM golang:1.22-alpine AS builder
-
-RUN apk add --no-cache gcc musl-dev
-
-ENV GOPROXY=https://goproxy.cn,direct
-ENV GO111MODULE=on
-
-WORKDIR /app
-
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o /orange-server ./cmd/main.go
-
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata sqlite-libs && \
+RUN apk add --no-cache ca-certificates tzdata && \
     cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
     echo "Asia/Shanghai" > /etc/timezone && \
-    apk del tzdata
+    apk del tzdata && \
+    addgroup -g 1000 appuser && \
+    adduser -u 1000 -G appuser -s /bin/sh -D appuser
 
 WORKDIR /app
 
-COPY --from=builder /orange-server .
+COPY orange-server-linux /app/orange-server
+RUN chmod +x /app/orange-server && chown -R appuser:appuser /app
 
-RUN mkdir -p /app/uploads /app/data
+RUN mkdir -p /app/uploads /app/data && chown -R appuser:appuser /app/uploads /app/data
 
 VOLUME ["/app/data", "/app/uploads"]
 
@@ -38,4 +25,5 @@ ENV SERVER_PORT=3003 \
     MAX_UPLOAD_SIZE=10485760 \
     CORS_ORIGIN=http://123.56.99.154
 
+USER appuser
 ENTRYPOINT ["/app/orange-server"]
