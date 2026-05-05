@@ -7,6 +7,7 @@ import (
 	"server-go/internal/database"
 	"server-go/internal/handlers"
 	"server-go/internal/middleware"
+	"server-go/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,6 +17,15 @@ func main() {
 
 	if err := database.Init(cfg); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	log.Println("🔍 检查并填充博主拼音字段...")
+	if count, err := migrateBloggerPinyin(); err != nil {
+		log.Printf("⚠️ 拼音迁移失败: %v", err)
+	} else if count > 0 {
+		log.Printf("✅ 成功填充 %d 条博主记录的拼音字段", count)
+	} else {
+		log.Println("✅ 所有博主记录的拼音字段已就绪")
 	}
 
 	if cfg.RedisHost != "" {
@@ -40,10 +50,11 @@ func main() {
 
 	r.Static("/uploads", cfg.UploadPath)
 
+	handlers.InitFileCleanup(cfg.UploadPath)
+
 	authHandler := handlers.NewAuthHandler(database.DB, cfg)
 	bloggerHandler := handlers.NewBloggerHandler(database.DB)
 	teamHandler := handlers.NewTeamHandler(database.DB)
-	forumHandler := handlers.NewForumHandler(database.DB)
 	miscHandler := handlers.NewMiscHandler(database.DB, cfg)
 	adminHandler := handlers.NewAdminHandler(database.DB)
 	messageHandler := handlers.NewMessageHandler(database.DB)
@@ -58,27 +69,26 @@ func main() {
 	workflowHandler := handlers.NewWorkflowHandler(database.DB)
 	bloggerHandler.SetWorkflowHandler(workflowHandler)
 
+	backupManager := handlers.NewBackupManager(database.DB, cfg)
+	backupManager.Start()
+
 	api := r.Group("/api")
 	{
 		api.POST("/login", authHandler.Login)
 		api.POST("/register", authHandler.Register)
+		api.POST("/forgot-password", authHandler.ForgotPassword)
 		api.GET("/ws", wsHandler.HandleWebSocket)
-
-		api.GET("/public/posts", forumHandler.GetPosts)
-		api.GET("/public/posts/:id", forumHandler.GetPost)
-		api.GET("/public/forums", forumHandler.GetPosts)
-		api.GET("/public/forums/:id", forumHandler.GetPost)
 
 		api.GET("/category/list", miscHandler.GetCategories)
 		api.GET("/platform/list", miscHandler.GetPlatforms)
 		api.GET("/product/list", miscHandler.GetProducts)
-
-		api.GET("/users/public", miscHandler.GetPublicUsers)
+		api.GET("/bing-wallpaper", miscHandler.GetBingWallpaper)
 	}
 
 	authorized := api.Group("/")
 	authorized.Use(middleware.AuthMiddleware(cfg))
 	{
+		authorized.GET("/users/public", miscHandler.GetPublicUsers)
 		authorized.GET("/user/profile", authHandler.GetProfile)
 		authorized.PUT("/user/profile", authHandler.UpdateProfile)
 		authorized.POST("/user/change-password", authHandler.ChangePassword)
@@ -86,8 +96,13 @@ func main() {
 		authorized.GET("/user/detail/:username", authHandler.GetUserDetail)
 		authorized.GET("/user/:username/bloggers", authHandler.GetUserBloggers)
 		authorized.GET("/user/:username/followup-stats", authHandler.GetUserFollowupStats)
+		authorized.GET("/user/invite-info", authHandler.GetInviteInfo)
+		authorized.POST("/user/generate-invite-code", authHandler.GenerateInviteCode)
+		authorized.GET("/user/invite-code-records", authHandler.GetInviteCodeRecords)
+		authorized.GET("/user/blogger-add-stats", authHandler.GetBloggerAddStats)
 
 		authorized.GET("/blogger/list", bloggerHandler.GetBloggers)
+		authorized.GET("/blogger/suggestions", bloggerHandler.GetSuggestions)
 		authorized.GET("/blogger/my", bloggerHandler.GetMyBloggers)
 		authorized.GET("/blogger/:id", bloggerHandler.GetBlogger)
 		authorized.POST("/blogger/add", bloggerHandler.CreateBlogger)
@@ -124,6 +139,7 @@ func main() {
 		authorized.POST("/blogger/:id/valid", bloggerHandler.SetValid)
 		authorized.POST("/blogger/evaluation", bloggerHandler.SubmitEvaluation)
 		authorized.GET("/blogger/evaluation/:blogger_id", bloggerHandler.GetEvaluation)
+		authorized.GET("/blogger/:id/logs", bloggerHandler.GetBloggerLogs)
 
 		tagHandler := handlers.NewTagHandler()
 		authorized.GET("/tags", tagHandler.GetTags)
@@ -157,6 +173,9 @@ func main() {
 		authorized.GET("/blogger/news/:nickname", miscHandler.GetBloggerNews)
 
 		authorized.GET("/calendar/events", calendarHandler.GetCalendarEvents)
+		authorized.POST("/calendar/events", calendarHandler.CreateCalendarEvent)
+		authorized.DELETE("/calendar/events/:id", calendarHandler.DeleteCalendarEvent)
+		authorized.GET("/calendar/debug/events", calendarHandler.DebugGetAllEvents)
 
 		authorized.GET("/team/members", teamCollabHandler.GetTeamMembers)
 		authorized.POST("/blogger/transfer/request", teamCollabHandler.RequestTransfer)
@@ -230,20 +249,6 @@ func main() {
 		authorized.POST("/upload/team-logo", miscHandler.UploadTeamLogo)
 		authorized.POST("/upload/team-bg", miscHandler.UploadTeamBgImage)
 
-		authorized.POST("/forum/posts", forumHandler.CreatePost)
-		authorized.GET("/forum/posts/search", forumHandler.SearchForumPosts)
-		authorized.GET("/forum/posts/hot", forumHandler.GetHotPosts)
-		authorized.GET("/forum/posts/collected", forumHandler.GetCollectedPosts)
-		authorized.GET("/forum/posts/:id/like-status", forumHandler.GetLikeStatus)
-		authorized.GET("/forum/posts/:id/collect-status", forumHandler.GetCollectStatus)
-		authorized.POST("/forum/posts/:id/comments", forumHandler.CreateComment)
-		authorized.POST("/forum/posts/:id/like", forumHandler.LikePost)
-		authorized.POST("/forum/posts/:id/collect", forumHandler.CollectPost)
-		authorized.DELETE("/forum/posts/:id", forumHandler.DeletePost)
-		authorized.DELETE("/forum/posts/:id/comments/:commentId", forumHandler.DeleteComment)
-		authorized.POST("/forum/posts/:id/pin", forumHandler.PinPost)
-		authorized.POST("/forum/posts/:id/feature", forumHandler.FeaturePost)
-
 		authorized.GET("/notifications", miscHandler.GetNotifications)
 		authorized.POST("/notifications/:id/read", miscHandler.MarkNotificationRead)
 		authorized.POST("/notifications/mark-all-read", miscHandler.MarkAllNotificationsRead)
@@ -271,6 +276,7 @@ func main() {
 
 		authorized.GET("/my/team", teamHandler.GetMyTeam)
 		authorized.PUT("/my/team", teamHandler.UpdateMyTeam)
+		authorized.GET("/my-request", teamHandler.GetMyTeamRequest)
 
 		authorized.GET("/team/blogger/stat", miscHandler.GetTeamBloggerStat)
 		authorized.GET("/team/blogger/charts", miscHandler.GetTeamBloggerCharts)
@@ -280,6 +286,8 @@ func main() {
 		authorized.POST("/messages", messageHandler.SendMessage)
 		authorized.POST("/messages/read", messageHandler.MarkAsRead)
 		authorized.GET("/messages/unread", messageHandler.GetUnreadCount)
+		authorized.GET("/messages/private", messageHandler.GetPrivateMessages)
+		authorized.POST("/messages/private", messageHandler.SendPrivateMessage)
 	}
 
 	admin := authorized.Group("/admin")
@@ -295,8 +303,25 @@ func main() {
 		admin.GET("/export", miscHandler.ExportData)
 		admin.GET("/teams/pending", adminHandler.GetPendingTeams)
 		admin.POST("/teams/approve", adminHandler.ApproveTeam)
+		admin.POST("/teams/:id/approve", adminHandler.ApproveTeamByID)
+		admin.POST("/teams/:id/reject", adminHandler.RejectTeamByID)
 		admin.POST("/users/batch-approve", adminHandler.BatchApproveUsers)
 		admin.POST("/users/batch-reject", adminHandler.BatchRejectUsers)
+		admin.POST("/users/role", adminHandler.SetUserRole)
+		admin.POST("/users/delete", adminHandler.DeleteUser)
+		admin.POST("/users/reset-password", adminHandler.ResetUserPassword)
+		admin.POST("/blogger/edit", bloggerHandler.EditBlogger)
+		admin.DELETE("/log/:id", adminHandler.DeleteLog)
+
+		admin.POST("/backup/create", backupManager.CreateManualBackup)
+		admin.GET("/backup/list", backupManager.ListBackups)
+		admin.GET("/backup/download/:filename", backupManager.DownloadBackup)
+		admin.DELETE("/backup/:id", backupManager.DeleteBackup)
+		admin.GET("/backup/settings", backupManager.GetBackupSettings)
+		admin.PUT("/backup/settings", backupManager.UpdateBackupSettings)
+		admin.GET("/export/users-detailed", backupManager.ExportUsersDetailed)
+		admin.GET("/backup/download-db", backupManager.DownloadDatabase)
+		admin.POST("/backup/restore-db", backupManager.RestoreDatabase)
 	}
 
 	r.GET("/health", func(c *gin.Context) {
@@ -309,4 +334,32 @@ func main() {
 	if err := r.Run(":" + cfg.ServerPort); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+func migrateBloggerPinyin() (int, error) {
+	rows, err := database.DB.Query(`SELECT id, nickname, category FROM blogger WHERE is_deleted = 0`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	count := 0
+	for rows.Next() {
+		var id int
+		var nickname, category string
+		if err := rows.Scan(&id, &nickname, &category); err != nil {
+			continue
+		}
+
+		nicknamePy := utils.ConvertToPinyin(nickname)
+		categoryPy := utils.ConvertToPinyin(category)
+		if _, err := database.DB.Exec(`UPDATE blogger SET nickname_pinyin = ?, category_pinyin = ? WHERE id = ?`, nicknamePy, categoryPy, id); err != nil {
+			log.Printf("更新博主ID=%d的拼音失败: %v", id, err)
+			continue
+		}
+
+		count++
+	}
+
+	return count, nil
 }
