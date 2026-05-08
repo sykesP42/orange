@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#f97316">
+  <meta name="description" content="Orange - 小而美的博主归属锁定管理工具">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Orange">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="format-detection" content="telephone=no">
+  <title>Orange</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍊</text></svg>">
+  <link rel="apple-touch-icon" href="/pwa-icons/icon-192x192.svg">
+  <link rel="manifest" href="/manifest.json?v=20260428">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<script>
+// 🔥🔥🔥 立即执行 - 最高优先级修复脚本 🔥🔥🔥
+console.log('[FORCE FIX] ⚡ 脚本开始执行 (优先级: 最高)')
+
+function fixFileInputsNow() {
+  var inputs = document.querySelectorAll('input[type="file"]')
+  inputs.forEach(function(input) {
+    var parent = input.closest('.backup-card')
+    if (parent && parent.textContent.includes('本地还原')) {
+      input.setAttribute('accept', '.db,.sqlite,.sqlite3')
+      input.accept = '.db,.sqlite,.sqlite3'
+      console.log('[FORCE FIX] ✅ 已修正文件格式为:', input.accept)
+    }
+  })
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(fixFileInputsNow, 100)
+    setTimeout(fixFileInputsNow, 500)
+    setTimeout(fixFileInputsNow, 1000)
+    setInterval(fixFileInputsNow, 2000)
+  })
+} else {
+  fixFileInputsNow()
+}
+
+new MutationObserver(function() {
+  setTimeout(fixFileInputsNow, 50)
+}).observe(document.body || document.documentElement, { childList: true, subtree: true })
+
+console.log('[FORCE FIX] ✅ 监听器已安装')
+</script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js?v=20260429_1200"></script>
+  <script>
+    // 🔥 超级强制修复本地还原文件选择器格式（终极方案）
+    console.log('[Force Fix] 🚀 开始加载文件选择器修复脚本...')
+
+    function forceFixFileInput() {
+      console.log('[Force Fix] 🔍 正在扫描所有文件输入框...')
+
+      var allInputs = document.querySelectorAll('input[type="file"]')
+      console.log('[Force Fix] 找到文件输入框数量:', allInputs.length)
+
+      allInputs.forEach(function(input, index) {
+        console.log(`[Force Fix] 检查输入框 #${index}:`, {
+          accept: input.accept,
+          id: input.id,
+          className: input.className,
+          style: input.getAttribute('style'),
+          parentText: input.parentElement ? input.parentElement.textContent.substring(0, 50) : '无父元素'
+        })
+
+        var parent = input.closest('.backup-card')
+        if (parent && parent.textContent.includes('本地还原')) {
+          console.log('[Force Fix] 🎯 发现"本地还原"输入框! 当前accept:', input.accept)
+
+          input.setAttribute('accept', '.db,.sqlite,.sqlite3')
+          input.accept = '.db,.sqlite,.sqlite3'
+
+          console.log('[Force Fix] ✅ 已强制修正为:', input.accept)
+          console.log('[Force Fix] ✅ 验证getAttribute:', input.getAttribute('accept'))
+        }
+      })
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('[Force Fix] 📄 DOM加载完成，开始修复...')
+
+      setTimeout(forceFixFileInput, 500)
+      setTimeout(forceFixFileInput, 1000)
+      setTimeout(forceFixFileInput, 2000)
+      setTimeout(forceFixFileInput, 3000)
+
+      var observer = new MutationObserver(function(mutations) {
+        var shouldFix = false
+        mutations.forEach(function(mutation) {
+          if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+            shouldFix = true
+          }
+        })
+
+        if (shouldFix) {
+          setTimeout(forceFixFileInput, 100)
+        }
+      })
+
+      observer.observe(document.body, { childList: true, subtree: true })
+      console.log('[Force Fix] 👁️ MutationObserver已启动，持续监控DOM变化...')
+    })
+
+    window.addEventListener('load', function() {
+      console.log('[Force Fix] 🖼️ 页面完全加载，最终修复...')
+      forceFixFileInput()
+    })
+  </script>
+</body>
+</html>
